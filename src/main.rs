@@ -10,7 +10,7 @@ use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
-    widgets::{Block, BorderType, Borders},
+    widgets::{Block, BorderType, Borders, List, ListItem},
     Terminal,
 };
 
@@ -60,11 +60,20 @@ fn ui() -> Result<(), CustomError> {
             chunks[0],
         );
         frame.render_widget(
-            Block::default()
-                .title("middle")
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::LightCyan))
-                .border_type(BorderType::Rounded),
+            List::new([
+                ListItem::new("hey"),
+                ListItem::new("what"),
+                ListItem::new("are"),
+                ListItem::new("you"),
+                ListItem::new("doing"),
+            ])
+            .block(
+                Block::default()
+                    .title("middle")
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::LightCyan))
+                    .border_type(BorderType::Rounded),
+            ),
             chunks[1],
         );
         frame.render_widget(
