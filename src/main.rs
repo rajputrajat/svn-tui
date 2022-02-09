@@ -1,5 +1,5 @@
 use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture},
+    event::{read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -41,9 +41,11 @@ fn svn_data() -> Result<CustomList, CustomError> {
         "https://svn.ali.global/GDK_games/GDK_games/BLS/HHR".to_owned()
     ]);
     list.set_request_handle(move |target, tx| {
+        info!("svn info requested!");
         let slist = cmd.list(&target, false)?;
         let list_vec: Vec<String> = slist.iter().map(|i| i.name.clone()).collect();
         tx.send(list_vec).unwrap();
+        info!("svn info responded!");
         Ok(())
     });
 
@@ -103,37 +105,46 @@ fn ui(custom_list: &mut CustomList) -> Result<(), CustomError> {
     custom_list.selected();
 
     loop {
-        terminal.draw(|frame| {
-            if let Some(hndl) = &custom_list.req_hndl {
-                if hndl.requested {
-                    if let Some(rx) = &hndl.recv {
-                        if let Ok(new_data) = rx.recv() {
-                            custom_list.replace_items(new_data);
-                        }
+        match read()? {
+            Event::Key(KeyEvent {
+                code: KeyCode::Esc, ..
+            }) => {
+                break;
+            }
+            _ => {}
+        }
+        if let Some(hndl) = &custom_list.req_hndl {
+            if hndl.requested {
+                if let Some(rx) = &hndl.recv {
+                    if let Ok(new_data) = rx.try_recv() {
+                        custom_list.replace_items(new_data);
+                        info!("{:?}", custom_list.items);
                     }
                 }
             }
-            let lst: Vec<ListItem> = custom_list
-                .items
-                .iter()
-                .map(|i| ListItem::new(i.as_str()))
-                .collect();
-            frame.render_stateful_widget(List::new(lst), frame.size(), &mut custom_list.state);
-        })?;
+        }
+        let lst: Vec<ListItem> = custom_list
+            .items
+            .iter()
+            .map(|i| ListItem::new(i.as_str()))
+            .collect();
+        // terminal.draw(|frame| {
+        //     frame.render_stateful_widget(List::new(lst), frame.size(), &mut custom_list.state);
+        // })?;
     }
 
-    // thread::sleep(Duration::from_secs(5));
-    //
-    // // restore terminal
-    // disable_raw_mode()?;
-    // execute!(
-    //     terminal.backend_mut(),
-    //     LeaveAlternateScreen,
-    //     DisableMouseCapture
-    // )?;
-    // terminal.show_cursor()?;
+    //thread::sleep(Duration::from_secs(5));
 
-    //Ok(())
+    // restore terminal
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
+
+    Ok(())
 }
 
 struct RequestHandle {
@@ -165,6 +176,9 @@ impl CustomList {
     }
 
     fn replace_items(&mut self, items: Vec<String>) {
+        if let Some(hndl) = &mut self.req_hndl {
+            hndl.requested = false;
+        }
         self.items = items;
     }
 
@@ -197,6 +211,7 @@ impl CustomList {
             .unwrap();
         if let Some(hndl) = &mut self.req_hndl {
             hndl.recv = Some(rx);
+            hndl.requested = true;
             let hndl = Arc::clone(&hndl.hndl);
             thread::spawn(move || {
                 (hndl)(req_data, tx).unwrap();
