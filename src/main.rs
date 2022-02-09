@@ -3,7 +3,9 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use log::info;
 use std::{io, thread, time::Duration};
+use svn_cmd::{Credentials, SvnCmd, SvnError};
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -12,12 +14,26 @@ use tui::{
     Terminal,
 };
 
-fn main() -> Result<(), io::Error> {
+fn main() -> Result<(), CustomError> {
     env_logger::init();
+    svn_data()?;
     ui()
 }
 
-fn ui() -> Result<(), io::Error> {
+fn svn_data() -> Result<(), CustomError> {
+    let cmd = SvnCmd::new(
+        Credentials {
+            username: "svc-p-blsrobo".to_owned(),
+            password: "Comewel@12345".to_owned(),
+        },
+        None,
+    )?;
+    let list = cmd.list("https://svn.ali.global/GDK_games/GDK_games/BLS/HHR", false)?;
+    info!("{list:?}");
+    Ok(())
+}
+
+fn ui() -> Result<(), CustomError> {
     // start terminal mode
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -69,4 +85,22 @@ fn ui() -> Result<(), io::Error> {
     terminal.show_cursor()?;
 
     Ok(())
+}
+
+#[derive(Debug)]
+enum CustomError {
+    Io(io::Error),
+    Svn(SvnError),
+}
+
+impl From<io::Error> for CustomError {
+    fn from(e: io::Error) -> Self {
+        CustomError::Io(e)
+    }
+}
+
+impl From<SvnError> for CustomError {
+    fn from(e: SvnError) -> Self {
+        CustomError::Svn(e)
+    }
 }
