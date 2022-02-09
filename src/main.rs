@@ -133,7 +133,6 @@ fn ui(custom_list: CustomList) -> Result<(), CustomError> {
                 chunks[1],
                 &mut custom_list.state,
             );
-            thread::sleep(Duration::from_secs(1));
         })?;
     }
 
