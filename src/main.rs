@@ -24,8 +24,8 @@ use tui::{
 
 fn main() -> Result<(), CustomError> {
     env_logger::init();
-    let mut clist = svn_data()?;
-    ui(&mut clist)
+    let clist = svn_data()?;
+    ui(clist)
 }
 
 fn svn_data() -> Result<CustomList, CustomError> {
@@ -50,7 +50,7 @@ fn svn_data() -> Result<CustomList, CustomError> {
     Ok(list)
 }
 
-fn ui(custom_list: &mut CustomList) -> Result<(), CustomError> {
+fn ui(custom_list: CustomList) -> Result<(), CustomError> {
     // start terminal mode
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -59,6 +59,7 @@ fn ui(custom_list: &mut CustomList) -> Result<(), CustomError> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    let mut custom_list = custom_list;
     custom_list.selected();
 
     loop {
@@ -122,12 +123,16 @@ fn ui(custom_list: &mut CustomList) -> Result<(), CustomError> {
                     }
                 }
             }
-            let lst: Vec<ListItem> = custom_list
+            let list_being_displayed: Vec<ListItem> = custom_list
                 .items
                 .iter()
                 .map(|i| ListItem::new(i.as_str()))
                 .collect();
-            frame.render_stateful_widget(List::new(lst), chunks[1], &mut custom_list.state);
+            frame.render_stateful_widget(
+                List::new(list_being_displayed),
+                chunks[1],
+                &mut custom_list.state,
+            );
             thread::sleep(Duration::from_secs(1));
         })?;
     }
