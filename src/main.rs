@@ -6,7 +6,10 @@ use crossterm::{
 use log::info;
 use std::{
     io,
-    sync::mpsc::{Receiver, Sender},
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc,
+    },
     thread,
     time::Duration,
 };
@@ -21,11 +24,11 @@ use tui::{
 
 fn main() -> Result<(), CustomError> {
     env_logger::init();
-    svn_data()?;
-    ui()
+    let mut clist = svn_data()?;
+    ui(&mut clist)
 }
 
-fn svn_data() -> Result<(), CustomError> {
+fn svn_data() -> Result<CustomList, CustomError> {
     let cmd = SvnCmd::new(
         Credentials {
             username: "svc-p-blsrobo".to_owned(),
@@ -33,12 +36,21 @@ fn svn_data() -> Result<(), CustomError> {
         },
         None,
     )?;
-    let list = cmd.list("https://svn.ali.global/GDK_games/GDK_games/BLS/HHR", false)?;
-    info!("{list:?}");
-    Ok(())
+
+    let mut list = CustomList::from(vec![
+        "https://svn.ali.global/GDK_games/GDK_games/BLS/HHR".to_owned()
+    ]);
+    list.set_request_handle(move |target, tx| {
+        let slist = cmd.list(&target, false)?;
+        let list_vec: Vec<String> = slist.iter().map(|i| i.name.clone()).collect();
+        tx.send(list_vec).unwrap();
+        Ok(())
+    });
+
+    Ok(list)
 }
 
-fn ui() -> Result<(), CustomError> {
+fn ui(custom_list: &mut CustomList) -> Result<(), CustomError> {
     // start terminal mode
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -46,6 +58,7 @@ fn ui() -> Result<(), CustomError> {
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
+
     terminal.draw(|frame| {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
@@ -87,41 +100,71 @@ fn ui() -> Result<(), CustomError> {
         );
     })?;
 
-    thread::sleep(Duration::from_secs(5));
+    custom_list.selected();
 
-    // restore terminal
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
-
-    Ok(())
-}
-
-struct RequesterHandle<T> {
-    handle: Box<dyn Fn(&T)>,
-    recv_ch: Receiver<Vec<T>>,
-}
-
-struct CustomList<T> {
-    items: Vec<T>,
-    state: ListState,
-    req_hndl: Option<RequesterHandle<T>>,
-}
-
-impl<T: Clone> CustomList<T> {
-    fn set_request_handle(&mut self, hndl: RequesterHandle<T>) {
-        self.req_hndl.replace(hndl);
+    loop {
+        terminal.draw(|frame| {
+            if let Some(hndl) = &custom_list.req_hndl {
+                if hndl.requested {
+                    if let Some(rx) = &hndl.recv {
+                        if let Ok(new_data) = rx.recv() {
+                            custom_list.replace_items(new_data);
+                        }
+                    }
+                }
+            }
+            let lst: Vec<ListItem> = custom_list
+                .items
+                .iter()
+                .map(|i| ListItem::new(i.as_str()))
+                .collect();
+            frame.render_stateful_widget(List::new(lst), frame.size(), &mut custom_list.state);
+        })?;
     }
 
-    fn add_items(&mut self, items: &[T]) {
+    // thread::sleep(Duration::from_secs(5));
+    //
+    // // restore terminal
+    // disable_raw_mode()?;
+    // execute!(
+    //     terminal.backend_mut(),
+    //     LeaveAlternateScreen,
+    //     DisableMouseCapture
+    // )?;
+    // terminal.show_cursor()?;
+
+    //Ok(())
+}
+
+struct RequestHandle {
+    hndl: Arc<dyn Fn(String, Sender<Vec<String>>) -> Result<(), CustomError> + Sync + Send>,
+    recv: Option<Receiver<Vec<String>>>,
+    requested: bool,
+}
+
+struct CustomList {
+    items: Vec<String>,
+    state: ListState,
+    req_hndl: Option<RequestHandle>,
+}
+
+impl CustomList {
+    fn set_request_handle<F: 'static>(&mut self, hndl: F)
+    where
+        F: Fn(String, Sender<Vec<String>>) -> Result<(), CustomError> + Sync + Send,
+    {
+        self.req_hndl.replace(RequestHandle {
+            hndl: Arc::new(hndl),
+            recv: None,
+            requested: false,
+        });
+    }
+
+    fn add_items(&mut self, items: &[String]) {
         self.items.extend_from_slice(items);
     }
 
-    fn replace_items(&mut self, items: Vec<T>) {
+    fn replace_items(&mut self, items: Vec<String>) {
         self.items = items;
     }
 
@@ -145,21 +188,33 @@ impl<T: Clone> CustomList<T> {
         }
     }
 
-    fn selected(&self) {
-        if let Some(hndl) = &self.req_hndl {
-            (hndl.handle)(self.items.get(self.state.selected().unwrap()).unwrap());
+    fn selected(&mut self) {
+        let (tx, rx) = channel();
+        let req_data = self
+            .items
+            .get(self.state.selected().unwrap())
+            .cloned()
+            .unwrap();
+        if let Some(hndl) = &mut self.req_hndl {
+            hndl.recv = Some(rx);
+            let hndl = Arc::clone(&hndl.hndl);
+            thread::spawn(move || {
+                (hndl)(req_data, tx).unwrap();
+            });
         }
+        // let new_data = rx.recv().unwrap();
+        // self.replace_items(new_data);
     }
 }
 
-impl<T: Clone> From<&[T]> for CustomList<T> {
-    fn from(items: &[T]) -> Self {
+impl From<&[String]> for CustomList {
+    fn from(items: &[String]) -> Self {
         CustomList::from(items.to_vec())
     }
 }
 
-impl<T> From<Vec<T>> for CustomList<T> {
-    fn from(items: Vec<T>) -> Self {
+impl From<Vec<String>> for CustomList {
+    fn from(items: Vec<String>) -> Self {
         let mut v = Self {
             items,
             ..Default::default()
@@ -171,7 +226,7 @@ impl<T> From<Vec<T>> for CustomList<T> {
     }
 }
 
-impl<T> Default for CustomList<T> {
+impl Default for CustomList {
     fn default() -> Self {
         Self {
             items: vec![],
