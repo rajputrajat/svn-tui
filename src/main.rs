@@ -7,7 +7,8 @@ use std::{io, thread, time::Duration};
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
-    widgets::{Block, Borders},
+    style::{Color, Style},
+    widgets::{Block, BorderType, Borders},
     Terminal,
 };
 
@@ -43,7 +44,11 @@ fn ui() -> Result<(), io::Error> {
             chunks[0],
         );
         frame.render_widget(
-            Block::default().title("middle").borders(Borders::ALL),
+            Block::default()
+                .title("middle")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::LightCyan))
+                .border_type(BorderType::Rounded),
             chunks[1],
         );
         frame.render_widget(
