@@ -1,5 +1,5 @@
 use crossterm::{
-    event::{read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent},
+    event::{poll, read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -41,12 +41,9 @@ fn svn_data() -> Result<CustomList, CustomError> {
         "https://svn.ali.global/GDK_games/GDK_games/BLS/HHR".to_owned()
     ]);
     list.set_request_handle(move |target, tx| {
-        info!("svn info requested!");
         let slist = cmd.list(&target, false)?;
         let list_vec: Vec<String> = slist.iter().map(|i| i.name.clone()).collect();
-        info!("{list_vec:?}");
         tx.send(list_vec).unwrap();
-        info!("svn info responded!");
         Ok(())
     });
 
@@ -106,20 +103,21 @@ fn ui(custom_list: &mut CustomList) -> Result<(), CustomError> {
     custom_list.selected();
 
     loop {
-        match read()? {
-            Event::Key(KeyEvent {
-                code: KeyCode::Esc, ..
-            }) => {
-                break;
+        if poll(Duration::from_millis(200))? {
+            match read()? {
+                Event::Key(KeyEvent {
+                    code: KeyCode::Esc, ..
+                }) => {
+                    break;
+                }
+                _ => {}
             }
-            _ => {}
         }
         if let Some(hndl) = &custom_list.req_hndl {
             if hndl.requested {
                 if let Some(rx) = &hndl.recv {
                     if let Ok(new_data) = rx.try_recv() {
                         custom_list.replace_items(new_data);
-                        info!("{:?}", custom_list.items);
                     }
                 }
             }
@@ -129,12 +127,11 @@ fn ui(custom_list: &mut CustomList) -> Result<(), CustomError> {
             .iter()
             .map(|i| ListItem::new(i.as_str()))
             .collect();
-        // terminal.draw(|frame| {
-        //     frame.render_stateful_widget(List::new(lst), frame.size(), &mut custom_list.state);
-        // })?;
+        terminal.draw(|frame| {
+            frame.render_stateful_widget(List::new(lst), frame.size(), &mut custom_list.state);
+        })?;
+        thread::sleep(Duration::from_secs(1));
     }
-
-    //thread::sleep(Duration::from_secs(5));
 
     // restore terminal
     disable_raw_mode()?;
