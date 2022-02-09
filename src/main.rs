@@ -6,6 +6,7 @@ use crossterm::{
 use std::{io, thread, time::Duration};
 use tui::{
     backend::CrosstermBackend,
+    layout::{Constraint, Direction, Layout},
     widgets::{Block, Borders},
     Terminal,
 };
@@ -24,9 +25,31 @@ fn ui() -> Result<(), io::Error> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
     terminal.draw(|frame| {
-        let size = frame.size();
-        let block = Block::default().title("block").borders(Borders::ALL);
-        frame.render_widget(block, size);
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .margin(0)
+            .constraints(
+                [
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(80),
+                    Constraint::Percentage(10),
+                ]
+                .as_ref(),
+            )
+            .split(frame.size());
+
+        frame.render_widget(
+            Block::default().title("left").borders(Borders::ALL),
+            chunks[0],
+        );
+        frame.render_widget(
+            Block::default().title("middle").borders(Borders::ALL),
+            chunks[1],
+        );
+        frame.render_widget(
+            Block::default().title("right").borders(Borders::ALL),
+            chunks[2],
+        );
     })?;
 
     thread::sleep(Duration::from_secs(5));
