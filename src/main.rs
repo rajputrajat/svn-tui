@@ -44,6 +44,7 @@ fn svn_data() -> Result<CustomList, CustomError> {
         info!("svn info requested!");
         let slist = cmd.list(&target, false)?;
         let list_vec: Vec<String> = slist.iter().map(|i| i.name.clone()).collect();
+        info!("{list_vec:?}");
         tx.send(list_vec).unwrap();
         info!("svn info responded!");
         Ok(())
