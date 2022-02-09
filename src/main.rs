@@ -59,47 +59,6 @@ fn ui(custom_list: &mut CustomList) -> Result<(), CustomError> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    terminal.draw(|frame| {
-        let chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .margin(0)
-            .constraints(
-                [
-                    Constraint::Percentage(10),
-                    Constraint::Percentage(80),
-                    Constraint::Percentage(10),
-                ]
-                .as_ref(),
-            )
-            .split(frame.size());
-
-        frame.render_widget(
-            Block::default().title("left").borders(Borders::ALL),
-            chunks[0],
-        );
-        frame.render_widget(
-            List::new([
-                ListItem::new("hey"),
-                ListItem::new("what"),
-                ListItem::new("are"),
-                ListItem::new("you"),
-                ListItem::new("doing"),
-            ])
-            .block(
-                Block::default()
-                    .title("middle")
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::LightCyan))
-                    .border_type(BorderType::Rounded),
-            ),
-            chunks[1],
-        );
-        frame.render_widget(
-            Block::default().title("right").borders(Borders::ALL),
-            chunks[2],
-        );
-    })?;
-
     custom_list.selected();
 
     loop {
@@ -113,24 +72,64 @@ fn ui(custom_list: &mut CustomList) -> Result<(), CustomError> {
                 _ => {}
             }
         }
-        if let Some(hndl) = &custom_list.req_hndl {
-            if hndl.requested {
-                if let Some(rx) = &hndl.recv {
-                    if let Ok(new_data) = rx.try_recv() {
-                        custom_list.replace_items(new_data);
+
+        terminal.draw(|frame| {
+            let chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .margin(0)
+                .constraints(
+                    [
+                        Constraint::Percentage(10),
+                        Constraint::Percentage(80),
+                        Constraint::Percentage(10),
+                    ]
+                    .as_ref(),
+                )
+                .split(frame.size());
+
+            frame.render_widget(
+                Block::default().title("left").borders(Borders::ALL),
+                chunks[0],
+            );
+            frame.render_widget(
+                List::new([
+                    ListItem::new("hey"),
+                    ListItem::new("what"),
+                    ListItem::new("are"),
+                    ListItem::new("you"),
+                    ListItem::new("doing"),
+                ])
+                .block(
+                    Block::default()
+                        .title("middle")
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(Color::LightCyan))
+                        .border_type(BorderType::Rounded),
+                ),
+                chunks[1],
+            );
+            frame.render_widget(
+                Block::default().title("right").borders(Borders::ALL),
+                chunks[2],
+            );
+
+            if let Some(hndl) = &custom_list.req_hndl {
+                if hndl.requested {
+                    if let Some(rx) = &hndl.recv {
+                        if let Ok(new_data) = rx.try_recv() {
+                            custom_list.replace_items(new_data);
+                        }
                     }
                 }
             }
-        }
-        let lst: Vec<ListItem> = custom_list
-            .items
-            .iter()
-            .map(|i| ListItem::new(i.as_str()))
-            .collect();
-        terminal.draw(|frame| {
-            frame.render_stateful_widget(List::new(lst), frame.size(), &mut custom_list.state);
+            let lst: Vec<ListItem> = custom_list
+                .items
+                .iter()
+                .map(|i| ListItem::new(i.as_str()))
+                .collect();
+            frame.render_stateful_widget(List::new(lst), chunks[1], &mut custom_list.state);
+            thread::sleep(Duration::from_secs(1));
         })?;
-        thread::sleep(Duration::from_secs(1));
     }
 
     // restore terminal
