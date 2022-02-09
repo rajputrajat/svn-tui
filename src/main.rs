@@ -74,6 +74,21 @@ fn ui(custom_list: CustomList) -> Result<(), CustomError> {
             }
         }
 
+        if let Some(hndl) = &custom_list.req_hndl {
+            if hndl.requested {
+                if let Some(rx) = &hndl.recv {
+                    if let Ok(new_data) = rx.try_recv() {
+                        custom_list.replace_items(new_data);
+                    }
+                }
+            }
+        }
+        let list_being_displayed: Vec<ListItem> = custom_list
+            .items
+            .iter()
+            .map(|i| ListItem::new(i.as_str()))
+            .collect();
+
         terminal.draw(|frame| {
             let chunks = Layout::default()
                 .direction(Direction::Horizontal)
@@ -114,20 +129,6 @@ fn ui(custom_list: CustomList) -> Result<(), CustomError> {
                 chunks[2],
             );
 
-            if let Some(hndl) = &custom_list.req_hndl {
-                if hndl.requested {
-                    if let Some(rx) = &hndl.recv {
-                        if let Ok(new_data) = rx.try_recv() {
-                            custom_list.replace_items(new_data);
-                        }
-                    }
-                }
-            }
-            let list_being_displayed: Vec<ListItem> = custom_list
-                .items
-                .iter()
-                .map(|i| ListItem::new(i.as_str()))
-                .collect();
             frame.render_stateful_widget(
                 List::new(list_being_displayed),
                 chunks[1],
