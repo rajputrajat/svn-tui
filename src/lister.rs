@@ -51,12 +51,6 @@ pub(crate) fn get_new_data<T>(rx: &Receiver<Vec<T>>) -> Option<Vec<T>> {
     rx.try_recv().ok()
 }
 
-struct RequestHandle {
-    hndl: Arc<dyn Fn(String, Sender<Vec<String>>) -> Result<(), CustomError> + Sync + Send>,
-    recv: Option<Receiver<Vec<String>>>,
-    requested: bool,
-}
-
 pub(crate) struct CustomList {
     items: Vec<String>,
     state: ListState,
@@ -86,7 +80,7 @@ impl ListOps for CustomList {
     fn get_list_items(&self) -> Vec<ListItem> {
         self.items
             .iter()
-            .map(|i| ListItem::new(i.as_ref()))
+            .map(|i| ListItem::new(i.clone()))
             .collect()
     }
 

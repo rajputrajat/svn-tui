@@ -70,11 +70,8 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             }
         }
 
-        let list = {
-            let locked = custom_list.lock().unwrap();
-            let items = locked.get_list_items();
-            List::new(items)
-        };
+        let locked = custom_list.lock().unwrap();
+        let list = List::new(locked.get_list_items());
         let clist_clone = Arc::clone(&custom_list);
         terminal.draw(|frame| {
             let chunks = Layout::default()
