@@ -20,7 +20,7 @@ pub(crate) trait ListOps {
     fn get_state_mut_ref(&mut self) -> &mut ListState;
 }
 
-pub(crate) fn svn_data_generator() -> Result<Box<DataGenerator>, CustomError> {
+pub(crate) fn svn_data_generator() -> Result<Arc<DataGenerator>, CustomError> {
     let cmd = SvnCmd::new(
         Credentials {
             username: "svc-p-blsrobo".to_owned(),
@@ -36,13 +36,10 @@ pub(crate) fn svn_data_generator() -> Result<Box<DataGenerator>, CustomError> {
         Ok(())
     };
 
-    Ok(Box::new(generator))
+    Ok(Arc::new(generator))
 }
 
-pub(crate) fn request_new_data(
-    selected: String,
-    cb: &'static DataGenerator,
-) -> Receiver<Vec<String>> {
+pub(crate) fn request_new_data(selected: String, cb: Arc<DataGenerator>) -> Receiver<Vec<String>> {
     let (tx, rx) = channel::<Vec<String>>();
     thread::spawn(move || {
         (cb)(selected, tx).unwrap();
@@ -50,7 +47,7 @@ pub(crate) fn request_new_data(
     rx
 }
 
-pub(crate) fn get_new_data<T>(rx: Receiver<Vec<T>>) -> Option<Vec<T>> {
+pub(crate) fn get_new_data<T>(rx: &Receiver<Vec<T>>) -> Option<Vec<T>> {
     rx.try_recv().ok()
 }
 

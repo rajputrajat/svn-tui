@@ -6,7 +6,11 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::{io, sync::mpsc::Receiver, time::Duration};
+use std::{
+    io,
+    sync::{mpsc::Receiver, Arc},
+    time::Duration,
+};
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -18,10 +22,10 @@ use tui::{
 fn main() -> Result<(), CustomError> {
     env_logger::init();
     let cb = svn_data_generator()?;
-    ui(&cb)
+    ui(cb)
 }
 
-fn ui(data_generator: &'static DataGenerator) -> Result<(), CustomError> {
+fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     // start terminal mode
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -45,7 +49,7 @@ fn ui(data_generator: &'static DataGenerator) -> Result<(), CustomError> {
                         KeyCode::Char('k') => custom_list.prev(),
                         KeyCode::Char('l') => {
                             if let Some(selected) = custom_list.get_current_selected() {
-                                rx = Some(request_new_data(selected, data_generator))
+                                rx = Some(request_new_data(selected, Arc::clone(&data_generator)))
                             }
                         }
                         KeyCode::Char('h') => {} /*go back*/
@@ -56,7 +60,7 @@ fn ui(data_generator: &'static DataGenerator) -> Result<(), CustomError> {
             }
         }
 
-        if let Some(rx) = rx {
+        if let Some(rx) = &rx {
             if let Some(new_data) = get_new_data(rx) {
                 custom_list = CustomList::from(new_data);
             }
@@ -101,11 +105,8 @@ fn ui(data_generator: &'static DataGenerator) -> Result<(), CustomError> {
                 Block::default().title("right").borders(Borders::ALL),
                 chunks[2],
             );
-            frame.render_stateful_widget(
-                List::new(custom_list.get_list_items()),
-                chunks[1],
-                &mut custom_list.get_state_mut_ref(),
-            );
+            let list = { List::new(custom_list.get_list_items()) };
+            frame.render_stateful_widget(list, chunks[1], &mut custom_list.get_state_mut_ref());
         })?;
     }
 
