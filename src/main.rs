@@ -37,11 +37,10 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let base_svn_url = Arc::new(Mutex::new(
+    let mut custom_lists = CustomLists::from(vec![CustomList::from((
+        vec!["HHR".to_owned()],
         "https://svn.ali.global/GDK_games/GDK_games/BLS/".to_owned(),
-    ));
-
-    let mut custom_lists = CustomLists::from(vec![CustomList::from(vec!["HHR".to_owned()])]);
+    ))]);
 
     let mut custom_state = {
         let (_, custom_list, _) = custom_lists.get_current();
@@ -65,10 +64,10 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                                     custom_list.get_current_selected(&custom_state)
                                 {
                                     debug!("requesting new data");
-                                    let mut base = base_svn_url.lock().unwrap();
+                                    let mut base = custom_list.base_url.clone();
                                     base.push_str(&selected);
                                     base.push('/');
-                                    new_data_request = Some(Request::Forward);
+                                    new_data_request = Some(Request::Forward(base.clone()));
                                     rx = Some(request_new_data(
                                         base.to_string(),
                                         Arc::clone(&data_generator),
@@ -110,16 +109,14 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             }
         }
 
-        if let Some(request) = &new_data_request {
+        if let Some(Request::Forward(base_url)) = &new_data_request {
             if let Some(rx) = &rx {
                 if let Some(new_data) = get_new_data(rx) {
                     debug!("data received");
-                    if *request == Request::Forward {
-                        let new_list = CustomList::from(new_data);
-                        custom_lists.add_new_list(new_list);
-                        if let (_, Some(list), _) = custom_lists.get_current() {
-                            custom_state = CustomListState::from(list);
-                        }
+                    let new_list = CustomList::from((new_data, base_url.to_owned()));
+                    custom_lists.add_new_list(new_list);
+                    if let (_, Some(list), _) = custom_lists.get_current() {
+                        custom_state = CustomListState::from(list);
                     }
                     new_data_request = None;
                 }

@@ -82,6 +82,7 @@ pub(crate) fn get_new_data<T>(rx: &Receiver<Vec<T>>) -> Option<Vec<T>> {
 #[derive(Default)]
 pub(crate) struct CustomList {
     items: Vec<String>,
+    pub(crate) base_url: String,
 }
 
 #[derive(Default)]
@@ -148,15 +149,12 @@ impl From<&CustomList> for CustomListState {
     }
 }
 
-impl From<&[String]> for CustomList {
-    fn from(items: &[String]) -> Self {
-        CustomList::from(items.to_vec())
-    }
-}
-
-impl From<Vec<String>> for CustomList {
-    fn from(items: Vec<String>) -> Self {
-        Self { items }
+impl From<(Vec<String>, String)> for CustomList {
+    fn from(pair: (Vec<String>, String)) -> Self {
+        Self {
+            items: pair.0,
+            base_url: pair.1,
+        }
     }
 }
 
@@ -187,7 +185,7 @@ impl From<SystemTimeError> for CustomError {
 
 #[derive(PartialEq, Eq)]
 pub(crate) enum Request {
-    Forward,
+    Forward(String),
     Backward,
 }
 
