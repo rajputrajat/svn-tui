@@ -38,6 +38,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     let mut custom_list = CustomList::from(vec![
         "https://svn.ali.global/GDK_games/GDK_games/BLS/HHR".to_owned(),
     ]);
+    let mut custom_state = CustomListState::from(&custom_list);
     let mut rx: Option<Receiver<Vec<String>>> = None;
 
     loop {
@@ -46,10 +47,11 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                 Event::Key(KeyEvent { code, .. }) => {
                     match code {
                         KeyCode::Esc => break,
-                        KeyCode::Char('j') => custom_list.next(),
-                        KeyCode::Char('k') => custom_list.prev(),
+                        KeyCode::Char('j') => custom_state.inc(),
+                        KeyCode::Char('k') => custom_state.dec(),
                         KeyCode::Char('l') => {
-                            if let Some(selected) = custom_list.get_current_selected() {
+                            if let Some(selected) = custom_list.get_current_selected(&custom_state)
+                            {
                                 debug!("requesting new data");
                                 rx = Some(request_new_data(selected, Arc::clone(&data_generator)))
                             }
@@ -110,7 +112,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             );
 
             let list = List::new(custom_list.get_list_items());
-            frame.render_stateful_widget(list, chunks[1], &mut custom_list.get_state_mut_ref());
+            frame.render_stateful_widget(list, chunks[1], &mut custom_state.state);
         })?;
     }
 

@@ -14,11 +14,15 @@ pub(crate) type DataGenerator =
     dyn Fn(String, Sender<Vec<String>>) -> Result<(), CustomError> + Sync + Send;
 
 pub(crate) trait ListOps {
-    fn next(&mut self);
-    fn prev(&mut self);
+    fn len(&self) -> usize;
     fn get_list_items(&self) -> Vec<ListItem>;
-    fn get_current_selected(&self) -> Option<String>;
-    fn get_state_mut_ref(&mut self) -> &mut ListState;
+    fn get_current_selected(&self, state: &impl ListStateOps) -> Option<String>;
+}
+
+pub(crate) trait ListStateOps {
+    fn get(&self) -> Option<usize>;
+    fn inc(&mut self);
+    fn dec(&mut self);
 }
 
 pub(crate) fn svn_data_generator() -> Result<Arc<DataGenerator>, CustomError> {
@@ -55,30 +59,46 @@ pub(crate) fn get_new_data<T>(rx: &Receiver<Vec<T>>) -> Option<Vec<T>> {
     rx.try_recv().ok()
 }
 
+#[derive(Default)]
 pub(crate) struct CustomList {
     items: Vec<String>,
-    state: ListState,
 }
 
-impl ListOps for CustomList {
-    fn next(&mut self) {
-        if let Some(cur) = self.state.selected() {
-            if self.items.len() + 1 > cur {
-                self.state.select(Some(cur + 1));
+#[derive(Default)]
+pub(crate) struct CustomListState {
+    pub(crate) state: ListState,
+    list_size: usize,
+}
+
+impl ListStateOps for CustomListState {
+    fn get(&self) -> Option<usize> {
+        self.state.selected()
+    }
+
+    fn inc(&mut self) {
+        if let Some(selected) = self.state.selected() {
+            if self.list_size + 1 > selected {
+                self.state.select(Some(selected + 1));
             } else {
                 self.state.select(Some(0));
             }
         }
     }
 
-    fn prev(&mut self) {
-        if let Some(cur) = self.state.selected() {
-            if cur > 1 {
-                self.state.select(Some(cur - 1));
+    fn dec(&mut self) {
+        if let Some(selected) = self.state.selected() {
+            if selected > 0 {
+                self.state.select(Some(selected - 1));
             } else {
-                self.state.select(Some(self.items.len() - 1))
+                self.state.select(Some(self.list_size - 1));
             }
         }
+    }
+}
+
+impl ListOps for CustomList {
+    fn len(&self) -> usize {
+        self.items.len()
     }
 
     fn get_list_items(&self) -> Vec<ListItem> {
@@ -88,16 +108,23 @@ impl ListOps for CustomList {
             .collect()
     }
 
-    fn get_current_selected(&self) -> Option<String> {
-        if let Some(selected) = self.state.selected() {
+    fn get_current_selected(&self, state: &impl ListStateOps) -> Option<String> {
+        if let Some(selected) = state.get() {
             return self.items.get(selected).cloned();
         } else {
             None
         }
     }
+}
 
-    fn get_state_mut_ref(&mut self) -> &mut ListState {
-        &mut self.state
+impl From<&CustomList> for CustomListState {
+    fn from(list: &CustomList) -> Self {
+        let mut state = ListState::default();
+        let list_size = list.len();
+        if list.len() > 0 {
+            state.select(Some(0));
+        }
+        CustomListState { state, list_size }
     }
 }
 
@@ -109,23 +136,7 @@ impl From<&[String]> for CustomList {
 
 impl From<Vec<String>> for CustomList {
     fn from(items: Vec<String>) -> Self {
-        let v = Self {
-            items,
-            ..Default::default()
-        };
-        if !v.items.is_empty() {
-            v.state.select(Some(0));
-        }
-        v
-    }
-}
-
-impl Default for CustomList {
-    fn default() -> Self {
-        Self {
-            items: vec![],
-            state: Default::default(),
-        }
+        Self { items }
     }
 }
 
