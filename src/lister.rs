@@ -186,7 +186,6 @@ impl From<SystemTimeError> for CustomError {
 #[derive(PartialEq, Eq)]
 pub(crate) enum Request {
     Forward(String),
-    Backward,
 }
 
 pub(crate) struct CustomLists {
@@ -218,7 +217,7 @@ impl CustomLists {
             self.current -= 1;
         }
         (
-            if self.current <= 0 {
+            if self.current == 0 {
                 None
             } else {
                 self.lists.get(self.current - 1)
@@ -236,7 +235,7 @@ impl CustomLists {
         Option<&CustomList>,
     ) {
         (
-            if self.current <= 0 {
+            if self.current == 0 {
                 None
             } else {
                 self.lists.get(self.current - 1)
