@@ -1,13 +1,14 @@
-use log::debug;
+use log::{debug, info};
 use std::{
+    collections::HashMap,
     io,
     sync::{
         mpsc::{channel, Receiver, Sender},
-        Arc,
+        {Arc, Mutex},
     },
     thread,
 };
-use svn_cmd::{Credentials, SvnCmd, SvnError};
+use svn_cmd::{Credentials, SvnCmd, SvnError, SvnList};
 use tui::widgets::{ListItem, ListState};
 
 pub(crate) type DataGenerator =
@@ -25,7 +26,9 @@ pub(crate) trait ListStateOps {
     fn dec(&mut self);
 }
 
-pub(crate) fn svn_data_generator() -> Result<Arc<DataGenerator>, CustomError> {
+pub(crate) type Cache = Arc<Mutex<HashMap<String, SvnList>>>;
+
+pub(crate) fn svn_data_generator(cache: Cache) -> Result<Arc<DataGenerator>, CustomError> {
     let cmd = SvnCmd::new(
         Credentials {
             username: "svc-p-blsrobo".to_owned(),
@@ -36,9 +39,14 @@ pub(crate) fn svn_data_generator() -> Result<Arc<DataGenerator>, CustomError> {
 
     let generator = move |target: String, tx: Sender<Vec<String>>| {
         debug!("request for '{target}'");
-        let slist = cmd.list(&target, false)?;
-        let list_vec: Vec<String> = slist.iter().map(|i| i.name.clone()).collect();
-        debug!("data: '{list_vec:?}'");
+        let list_vec = if let Some(cached_list) = cache.lock().unwrap().get(&target) {
+            cached_list.iter().map(|i| i.name.clone()).collect()
+        } else {
+            let list = cmd.list(&target, false)?;
+            cache.lock().unwrap().insert(target, list.clone());
+            list.iter().map(|i| i.name.clone()).collect()
+        };
+        info!("data: '{list_vec:?}'");
         tx.send(list_vec).unwrap();
         debug!("info sent");
         Ok(())

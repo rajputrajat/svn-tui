@@ -8,6 +8,7 @@ use crossterm::{
 };
 use log::{debug, info};
 use std::{
+    collections::HashMap,
     io,
     sync::{mpsc::Receiver, Arc, Mutex},
     time::Duration,
@@ -22,7 +23,8 @@ use tui::{
 
 fn main() -> Result<(), CustomError> {
     env_logger::init();
-    let cb = svn_data_generator()?;
+    let list_cache: Cache = Arc::new(Mutex::new(HashMap::new()));
+    let cb = svn_data_generator(Arc::clone(&list_cache))?;
     ui(cb)
 }
 
@@ -41,6 +43,9 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
 
     let mut custom_list = CustomList::from(vec!["HHR".to_owned()]);
     let mut custom_state = CustomListState::from(&custom_list);
+    let mut older_list = CustomList::from(vec![]);
+    let mut older_state = CustomListState::from(&older_list);
+
     let mut data_requested = false;
     let mut rx: Option<Receiver<Vec<String>>> = None;
 
