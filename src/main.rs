@@ -16,7 +16,7 @@ use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
-    widgets::{Block, BorderType, Borders, List, ListItem},
+    widgets::{Block, BorderType, Borders, List},
     Terminal,
 };
 
@@ -43,24 +43,20 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
 
     loop {
         if poll(Duration::from_millis(200))? {
-            match read()? {
-                Event::Key(KeyEvent { code, .. }) => {
-                    match code {
-                        KeyCode::Esc => break,
-                        KeyCode::Char('j') => custom_state.inc(),
-                        KeyCode::Char('k') => custom_state.dec(),
-                        KeyCode::Char('l') => {
-                            if let Some(selected) = custom_list.get_current_selected(&custom_state)
-                            {
-                                debug!("requesting new data");
-                                rx = Some(request_new_data(selected, Arc::clone(&data_generator)))
-                            }
+            if let Event::Key(KeyEvent { code, .. }) = read()? {
+                match code {
+                    KeyCode::Esc => break,
+                    KeyCode::Char('j') => custom_state.inc(),
+                    KeyCode::Char('k') => custom_state.dec(),
+                    KeyCode::Char('l') => {
+                        if let Some(selected) = custom_list.get_current_selected(&custom_state) {
+                            debug!("requesting new data");
+                            rx = Some(request_new_data(selected, Arc::clone(&data_generator)))
                         }
-                        KeyCode::Char('h') => {} /*go back*/
-                        _ => {}
                     }
+                    KeyCode::Char('h') => {} /*go back*/
+                    _ => {}
                 }
-                _ => {}
             }
         }
 
