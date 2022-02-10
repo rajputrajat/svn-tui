@@ -70,9 +70,6 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             }
         }
 
-        let locked = custom_list.lock().unwrap();
-        let list = List::new(locked.get_list_items());
-        let clist_clone = Arc::clone(&custom_list);
         terminal.draw(|frame| {
             let chunks = Layout::default()
                 .direction(Direction::Horizontal)
@@ -112,6 +109,10 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                 Block::default().title("right").borders(Borders::ALL),
                 chunks[2],
             );
+
+            let locked = custom_list.lock().unwrap();
+            let list = { List::new(locked.get_list_items()) };
+            let clist_clone = Arc::clone(&custom_list);
             frame.render_stateful_widget(
                 list,
                 chunks[1],
