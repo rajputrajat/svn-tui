@@ -18,7 +18,7 @@ pub(crate) trait ListOps<T = String> {
     fn prev(&mut self);
     fn selected(&mut self);
     fn get_list_items(&mut self) -> Option<Vec<ListItem>>;
-    fn get_state_mut_ref(&self) -> &mut ListState;
+    fn get_state_mut_ref(&mut self) -> &mut ListState;
 }
 
 pub(crate) fn svn_data() -> Result<CustomList, CustomError> {
@@ -114,12 +114,11 @@ impl ListOps for CustomList {
     }
 
     fn get_list_items(&mut self) -> Option<Vec<ListItem>> {
-        if let Some(hndl) = self.req_hndl {
+        if let Some(hndl) = &self.req_hndl {
             if hndl.requested {
                 if let Some(rx) = &hndl.recv {
                     if let Ok(new_data) = rx.try_recv() {
                         self.replace_items(new_data);
-                        hndl.requested = false;
                         let list_items = self
                             .items
                             .iter()
@@ -133,7 +132,7 @@ impl ListOps for CustomList {
         None
     }
 
-    fn get_state_mut_ref(&self) -> &mut ListState {
+    fn get_state_mut_ref(&mut self) -> &mut ListState {
         &mut self.state
     }
 }

@@ -32,7 +32,6 @@ fn ui(custom_list: impl ListOps) -> Result<(), CustomError> {
 
     let mut custom_list = custom_list;
     custom_list.selected();
-    let mut list: List;
 
     loop {
         if poll(Duration::from_millis(200))? {
@@ -50,8 +49,9 @@ fn ui(custom_list: impl ListOps) -> Result<(), CustomError> {
                 _ => {}
             }
         }
+        let mut list_items: Vec<ListItem> = vec![];
         if let Some(lstitems) = custom_list.get_list_items() {
-            list = List::new(lstitems);
+            list_items = lstitems;
         }
 
         terminal.draw(|frame| {
@@ -93,8 +93,11 @@ fn ui(custom_list: impl ListOps) -> Result<(), CustomError> {
                 Block::default().title("right").borders(Borders::ALL),
                 chunks[2],
             );
-
-            frame.render_stateful_widget(list, chunks[1], &mut custom_list.get_state_mut_ref());
+            frame.render_stateful_widget(
+                List::new(list_items),
+                chunks[1],
+                &mut custom_list.get_state_mut_ref(),
+            );
         })?;
     }
 
