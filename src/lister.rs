@@ -15,7 +15,7 @@ use tui::widgets::{ListItem, ListState};
 const MAX_VALIDITY_OF_CACHED_LIST: Duration = Duration::from_secs(15 * 60);
 
 pub(crate) type DataGenerator =
-    dyn Fn(String, Sender<Vec<String>>) -> Result<(), CustomError> + Sync + Send;
+    dyn Fn(String, Sender<SvnList>) -> Result<(), CustomError> + Sync + Send;
 
 pub(crate) trait ListOps {
     fn len(&self) -> usize;
@@ -40,26 +40,27 @@ pub(crate) fn svn_data_generator(cache: Cache) -> Result<Arc<DataGenerator>, Cus
         None,
     )?;
 
-    let generator = move |target: String, tx: Sender<Vec<String>>| {
+    let generator = move |target: String, tx: Sender<SvnList>| {
         debug!("request for '{target}'");
-        let mut list_vec = Vec::new();
+        let mut svn_list: Option<SvnList> = None;
         if let Some((cached_list, system_time)) = cache.lock().unwrap().get(&target) {
             if SystemTime::now().duration_since(*system_time)? < MAX_VALIDITY_OF_CACHED_LIST {
-                list_vec = cached_list.iter().map(|i| i.name.clone()).collect()
+                svn_list = Some(cached_list.clone());
+                // list_vec = cached_list.iter().map(|i| i.name.clone()).collect()
             } else {
                 cache.lock().unwrap().remove(&target);
             }
         }
-        if list_vec.is_empty() {
+        if svn_list.is_none() {
             let list = cmd.list(&target, false)?;
             cache
                 .lock()
                 .unwrap()
                 .insert(target, (list.clone(), SystemTime::now()));
-            list_vec = list.iter().map(|i| i.name.clone()).collect();
+            svn_list = Some(list);
         };
-        debug!("data: '{list_vec:?}'");
-        tx.send(list_vec).unwrap();
+        debug!("data: '{svn_list:?}'");
+        tx.send(svn_list.unwrap()).unwrap();
         debug!("info sent");
         Ok(())
     };
@@ -67,21 +68,21 @@ pub(crate) fn svn_data_generator(cache: Cache) -> Result<Arc<DataGenerator>, Cus
     Ok(Arc::new(generator))
 }
 
-pub(crate) fn request_new_data(selected: String, cb: Arc<DataGenerator>) -> Receiver<Vec<String>> {
-    let (tx, rx) = channel::<Vec<String>>();
+pub(crate) fn request_new_data(selected: String, cb: Arc<DataGenerator>) -> Receiver<SvnList> {
+    let (tx, rx) = channel::<SvnList>();
     thread::spawn(move || {
         (cb)(selected, tx).unwrap();
     });
     rx
 }
 
-pub(crate) fn get_new_data<T>(rx: &Receiver<Vec<T>>) -> Option<Vec<T>> {
+pub(crate) fn get_new_data(rx: &Receiver<SvnList>) -> Option<SvnList> {
     rx.try_recv().ok()
 }
 
 #[derive(Default)]
 pub(crate) struct CustomList {
-    items: Vec<String>,
+    items: SvnList,
     pub(crate) base_url: String,
 }
 
@@ -119,22 +120,23 @@ impl ListStateOps for CustomListState {
 
 impl ListOps for CustomList {
     fn len(&self) -> usize {
-        self.items.len()
+        self.items.iter().count()
     }
 
     fn get_list_items(&self) -> Vec<ListItem> {
         self.items
             .iter()
-            .map(|i| ListItem::new(i.as_ref()))
+            .map(|i| ListItem::new(i.name.as_ref()))
             .collect()
     }
 
     fn get_current_selected(&self, state: &impl ListStateOps) -> Option<String> {
         if let Some(selected) = state.get() {
-            return self.items.get(selected).cloned();
-        } else {
-            None
+            if let Some(item) = self.items.iter().nth(selected) {
+                return Some(item.name.clone());
+            }
         }
+        None
     }
 }
 
@@ -149,8 +151,17 @@ impl From<&CustomList> for CustomListState {
     }
 }
 
-impl From<(Vec<String>, String)> for CustomList {
-    fn from(pair: (Vec<String>, String)) -> Self {
+impl From<String> for CustomList {
+    fn from(base_url: String) -> Self {
+        Self {
+            items: SvnList::default(),
+            base_url,
+        }
+    }
+}
+
+impl From<(SvnList, String)> for CustomList {
+    fn from(pair: (SvnList, String)) -> Self {
         Self {
             items: pair.0,
             base_url: pair.1,

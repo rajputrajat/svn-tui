@@ -399,7 +399,7 @@ checksum = "f2dd574626839106c320a323308629dcb1acfc96e32a8cba364ddc61ac23ee83"
 [[package]]
 name = "svn-cmd"
 version = "0.1.0"
-source = "git+https://github.com/rajputrajat/svn-cmd#10747a99e887d90b2e08f1d9f6f7e28fb0d2d874"
+source = "git+https://github.com/rajputrajat/svn-cmd#dc31f48b171abac5a80f2395c92b42da4d643898"
 dependencies = [
  "log",
  "regex",

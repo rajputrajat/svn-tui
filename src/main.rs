@@ -13,6 +13,7 @@ use std::{
     sync::{mpsc::Receiver, Arc, Mutex},
     time::Duration,
 };
+use svn_cmd::SvnList;
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -28,6 +29,8 @@ fn main() -> Result<(), CustomError> {
     ui(cb)
 }
 
+const INITIAL_URL: &str = "https://svn.ali.global/GDK_games/GDK_games/BLS/";
+
 fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     // start terminal mode
     enable_raw_mode()?;
@@ -37,19 +40,18 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut custom_lists = CustomLists::from(vec![CustomList::from((
-        vec!["HHR".to_owned()],
-        "https://svn.ali.global/GDK_games/GDK_games/BLS/".to_owned(),
-    ))]);
+    let mut custom_lists = CustomLists::from(vec![CustomList::from(INITIAL_URL.to_owned())]);
 
     let mut custom_state = {
         let (_, custom_list, _) = custom_lists.get_current();
         CustomListState::from(custom_list.unwrap())
     };
 
-    let mut new_data_request: Option<Request> = None;
-    let mut rx: Option<Receiver<Vec<String>>> = None;
-
+    let mut new_data_request: Option<Request> = Some(Request::Forward(INITIAL_URL.to_owned()));
+    let mut rx: Option<Receiver<SvnList>> = Some(request_new_data(
+        INITIAL_URL.to_owned(),
+        Arc::clone(&data_generator),
+    ));
     loop {
         if poll(Duration::from_millis(200))? {
             if let Event::Key(KeyEvent { code, .. }) = read()? {
