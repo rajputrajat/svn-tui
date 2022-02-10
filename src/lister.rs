@@ -7,9 +7,12 @@ use std::{
         {Arc, Mutex},
     },
     thread,
+    time::{Duration, SystemTime, SystemTimeError},
 };
 use svn_cmd::{Credentials, SvnCmd, SvnError, SvnList};
 use tui::widgets::{ListItem, ListState};
+
+const MAX_VALIDITY_OF_CACHED_LIST: Duration = Duration::from_secs(15 * 60);
 
 pub(crate) type DataGenerator =
     dyn Fn(String, Sender<Vec<String>>) -> Result<(), CustomError> + Sync + Send;
@@ -26,7 +29,7 @@ pub(crate) trait ListStateOps {
     fn dec(&mut self);
 }
 
-pub(crate) type Cache = Arc<Mutex<HashMap<String, SvnList>>>;
+pub(crate) type Cache = Arc<Mutex<HashMap<String, (SvnList, SystemTime)>>>;
 
 pub(crate) fn svn_data_generator(cache: Cache) -> Result<Arc<DataGenerator>, CustomError> {
     let cmd = SvnCmd::new(
@@ -39,14 +42,23 @@ pub(crate) fn svn_data_generator(cache: Cache) -> Result<Arc<DataGenerator>, Cus
 
     let generator = move |target: String, tx: Sender<Vec<String>>| {
         debug!("request for '{target}'");
-        let list_vec = if let Some(cached_list) = cache.lock().unwrap().get(&target) {
-            cached_list.iter().map(|i| i.name.clone()).collect()
-        } else {
+        let mut list_vec = Vec::new();
+        if let Some((cached_list, system_time)) = cache.lock().unwrap().get(&target) {
+            if SystemTime::now().duration_since(*system_time)? < MAX_VALIDITY_OF_CACHED_LIST {
+                list_vec = cached_list.iter().map(|i| i.name.clone()).collect()
+            } else {
+                cache.lock().unwrap().remove(&target);
+            }
+        }
+        if list_vec.is_empty() {
             let list = cmd.list(&target, false)?;
-            cache.lock().unwrap().insert(target, list.clone());
-            list.iter().map(|i| i.name.clone()).collect()
+            cache
+                .lock()
+                .unwrap()
+                .insert(target, (list.clone(), SystemTime::now()));
+            list_vec = list.iter().map(|i| i.name.clone()).collect();
         };
-        info!("data: '{list_vec:?}'");
+        debug!("data: '{list_vec:?}'");
         tx.send(list_vec).unwrap();
         debug!("info sent");
         Ok(())
@@ -152,6 +164,7 @@ impl From<Vec<String>> for CustomList {
 pub(crate) enum CustomError {
     Io(io::Error),
     Svn(SvnError),
+    SystemTime(SystemTimeError),
 }
 
 impl From<io::Error> for CustomError {
@@ -163,5 +176,11 @@ impl From<io::Error> for CustomError {
 impl From<SvnError> for CustomError {
     fn from(e: SvnError) -> Self {
         CustomError::Svn(e)
+    }
+}
+
+impl From<SystemTimeError> for CustomError {
+    fn from(e: SystemTimeError) -> Self {
+        CustomError::SystemTime(e)
     }
 }
