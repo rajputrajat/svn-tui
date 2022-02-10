@@ -80,7 +80,7 @@ impl ListOps for CustomList {
     fn get_list_items(&self) -> Vec<ListItem> {
         self.items
             .iter()
-            .map(|i| ListItem::new(i.clone()))
+            .map(|i| ListItem::new(i.as_ref()))
             .collect()
     }
 
