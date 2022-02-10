@@ -8,7 +8,7 @@ use crossterm::{
 };
 use std::{
     io,
-    sync::{mpsc::Receiver, Arc},
+    sync::{mpsc::Receiver, Arc, Mutex},
     time::Duration,
 };
 use tui::{
@@ -34,21 +34,25 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut custom_list = CustomList::from(vec![
+    let custom_list = Arc::new(Mutex::new(CustomList::from(vec![
         "https://svn.ali.global/GDK_games/GDK_games/BLS/HHR".to_owned(),
-    ]);
+    ])));
     let mut rx: Option<Receiver<Vec<String>>> = None;
 
     loop {
+        let custom_list = Arc::clone(&custom_list);
+
         if poll(Duration::from_millis(200))? {
             match read()? {
                 Event::Key(KeyEvent { code, .. }) => {
                     match code {
                         KeyCode::Esc => break,
-                        KeyCode::Char('j') => custom_list.next(),
-                        KeyCode::Char('k') => custom_list.prev(),
+                        KeyCode::Char('j') => custom_list.lock().unwrap().next(),
+                        KeyCode::Char('k') => custom_list.lock().unwrap().prev(),
                         KeyCode::Char('l') => {
-                            if let Some(selected) = custom_list.get_current_selected() {
+                            if let Some(selected) =
+                                custom_list.lock().unwrap().get_current_selected()
+                            {
                                 rx = Some(request_new_data(selected, Arc::clone(&data_generator)))
                             }
                         }
@@ -62,11 +66,16 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
 
         if let Some(rx) = &rx {
             if let Some(new_data) = get_new_data(rx) {
-                custom_list = CustomList::from(new_data);
+                *custom_list.lock().unwrap() = CustomList::from(new_data);
             }
         }
 
-        let list = List::new(custom_list.get_list_items());
+        let list = {
+            let locked = custom_list.lock().unwrap();
+            let items = locked.get_list_items();
+            List::new(items)
+        };
+        let clist_clone = Arc::clone(&custom_list);
         terminal.draw(|frame| {
             let chunks = Layout::default()
                 .direction(Direction::Horizontal)
@@ -106,7 +115,11 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                 Block::default().title("right").borders(Borders::ALL),
                 chunks[2],
             );
-            frame.render_stateful_widget(list, chunks[1], &mut custom_list.get_state_mut_ref());
+            frame.render_stateful_widget(
+                list,
+                chunks[1],
+                &mut clist_clone.lock().unwrap().get_state_mut_ref(),
+            );
         })?;
     }
 
