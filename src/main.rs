@@ -9,7 +9,7 @@ use crossterm::{
 use log::debug;
 use std::{
     io,
-    sync::{mpsc::Receiver, Arc},
+    sync::{mpsc::Receiver, Arc, Mutex},
     time::Duration,
 };
 use tui::{
@@ -35,9 +35,11 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut custom_list = CustomList::from(vec![
-        "https://svn.ali.global/GDK_games/GDK_games/BLS/HHR".to_owned(),
-    ]);
+    let base_svn_url = Arc::new(Mutex::new(
+        "https://svn.ali.global/GDK_games/GDK_games/BLS".to_owned(),
+    ));
+
+    let mut custom_list = CustomList::from(vec!["HHR".to_owned()]);
     let mut custom_state = CustomListState::from(&custom_list);
     let mut rx: Option<Receiver<Vec<String>>> = None;
 
@@ -51,7 +53,12 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                     KeyCode::Char('l') => {
                         if let Some(selected) = custom_list.get_current_selected(&custom_state) {
                             debug!("requesting new data");
-                            rx = Some(request_new_data(selected, Arc::clone(&data_generator)))
+                            base_svn_url.lock().unwrap().push('/');
+                            base_svn_url.lock().unwrap().push_str(&selected);
+                            rx = Some(request_new_data(
+                                base_svn_url.lock().unwrap().to_string(),
+                                Arc::clone(&data_generator),
+                            ))
                         }
                     }
                     KeyCode::Char('h') => {} /*go back*/
