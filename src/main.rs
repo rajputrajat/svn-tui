@@ -110,8 +110,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             );
 
             let list = List::new(custom_list.get_list_items());
-            let mut state = custom_list.state.borrow_mut();
-            frame.render_stateful_widget(list, chunks[1], &mut state);
+            frame.render_stateful_widget(list, chunks[1], &mut custom_list.get_state_mut_ref());
         })?;
     }
 

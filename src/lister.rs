@@ -1,6 +1,5 @@
 use log::debug;
 use std::{
-    cell::RefCell,
     io,
     sync::{
         mpsc::{channel, Receiver, Sender},
@@ -19,6 +18,7 @@ pub(crate) trait ListOps {
     fn prev(&mut self);
     fn get_list_items(&self) -> Vec<ListItem>;
     fn get_current_selected(&self) -> Option<String>;
+    fn get_state_mut_ref(&mut self) -> &mut ListState;
 }
 
 pub(crate) fn svn_data_generator() -> Result<Arc<DataGenerator>, CustomError> {
@@ -57,26 +57,26 @@ pub(crate) fn get_new_data<T>(rx: &Receiver<Vec<T>>) -> Option<Vec<T>> {
 
 pub(crate) struct CustomList {
     items: Vec<String>,
-    pub(crate) state: RefCell<ListState>,
+    state: ListState,
 }
 
 impl ListOps for CustomList {
     fn next(&mut self) {
-        if let Some(cur) = self.state.borrow().selected() {
+        if let Some(cur) = self.state.selected() {
             if self.items.len() + 1 > cur {
-                self.state.borrow_mut().select(Some(cur + 1));
+                self.state.select(Some(cur + 1));
             } else {
-                self.state.borrow_mut().select(Some(0));
+                self.state.select(Some(0));
             }
         }
     }
 
     fn prev(&mut self) {
-        if let Some(cur) = self.state.borrow().selected() {
+        if let Some(cur) = self.state.selected() {
             if cur > 1 {
-                self.state.borrow_mut().select(Some(cur - 1));
+                self.state.select(Some(cur - 1));
             } else {
-                self.state.borrow_mut().select(Some(self.items.len() - 1))
+                self.state.select(Some(self.items.len() - 1))
             }
         }
     }
@@ -89,11 +89,15 @@ impl ListOps for CustomList {
     }
 
     fn get_current_selected(&self) -> Option<String> {
-        if let Some(selected) = self.state.borrow().selected() {
+        if let Some(selected) = self.state.selected() {
             return self.items.get(selected).cloned();
         } else {
             None
         }
+    }
+
+    fn get_state_mut_ref(&mut self) -> &mut ListState {
+        &mut self.state
     }
 }
 
@@ -110,7 +114,7 @@ impl From<Vec<String>> for CustomList {
             ..Default::default()
         };
         if !v.items.is_empty() {
-            v.state.borrow_mut().select(Some(0));
+            v.state.select(Some(0));
         }
         v
     }
