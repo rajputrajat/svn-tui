@@ -184,3 +184,59 @@ impl From<SystemTimeError> for CustomError {
         CustomError::SystemTime(e)
     }
 }
+
+#[derive(PartialEq, Eq)]
+pub(crate) enum Request {
+    Forward,
+    Backward,
+}
+
+pub(crate) struct CustomLists {
+    lists: Vec<CustomList>,
+    current: usize,
+}
+
+impl From<Vec<CustomList>> for CustomLists {
+    fn from(lists: Vec<CustomList>) -> Self {
+        CustomLists { lists, current: 0 }
+    }
+}
+
+impl CustomLists {
+    pub(crate) fn add_new_list(&mut self, list: CustomList) {
+        self.lists.truncate(self.current + 1);
+        self.lists.push(list);
+        self.current += 1;
+    }
+
+    pub(crate) fn go_back(
+        &mut self,
+    ) -> (
+        Option<&CustomList>,
+        Option<&CustomList>,
+        Option<&CustomList>,
+    ) {
+        if self.current > 0 {
+            self.current -= 1;
+        }
+        (
+            self.lists.get(self.current - 1),
+            self.lists.get(self.current),
+            self.lists.get(self.current + 1),
+        )
+    }
+
+    pub(crate) fn get_current(
+        &mut self,
+    ) -> (
+        Option<&CustomList>,
+        Option<&CustomList>,
+        Option<&CustomList>,
+    ) {
+        (
+            self.lists.get(self.current - 1),
+            self.lists.get(self.current),
+            self.lists.get(self.current + 1),
+        )
+    }
+}
