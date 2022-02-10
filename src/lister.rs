@@ -77,7 +77,7 @@ impl ListStateOps for CustomListState {
 
     fn inc(&mut self) {
         if let Some(selected) = self.state.selected() {
-            if self.list_size + 1 > selected {
+            if self.list_size - 1 > selected {
                 self.state.select(Some(selected + 1));
             } else {
                 self.state.select(Some(0));
