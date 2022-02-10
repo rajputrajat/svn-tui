@@ -6,6 +6,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use log::debug;
 use std::{
     io,
     sync::{mpsc::Receiver, Arc},
@@ -49,6 +50,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                         KeyCode::Char('k') => custom_list.prev(),
                         KeyCode::Char('l') => {
                             if let Some(selected) = custom_list.get_current_selected() {
+                                debug!("requesting new data");
                                 rx = Some(request_new_data(selected, Arc::clone(&data_generator)))
                             }
                         }
@@ -62,6 +64,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
 
         if let Some(rx) = &rx {
             if let Some(new_data) = get_new_data(rx) {
+                debug!("data received");
                 custom_list = CustomList::from(new_data);
             }
         }

@@ -1,3 +1,4 @@
+use log::debug;
 use std::{
     cell::RefCell,
     io,
@@ -30,9 +31,12 @@ pub(crate) fn svn_data_generator() -> Result<Arc<DataGenerator>, CustomError> {
     )?;
 
     let generator = move |target: String, tx: Sender<Vec<String>>| {
+        debug!("request for '{target}'");
         let slist = cmd.list(&target, false)?;
         let list_vec: Vec<String> = slist.iter().map(|i| i.name.clone()).collect();
+        debug!("data: '{list_vec:?}'");
         tx.send(list_vec).unwrap();
+        debug!("info sent");
         Ok(())
     };
 
