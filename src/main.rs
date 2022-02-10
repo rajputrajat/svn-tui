@@ -108,9 +108,9 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                 .margin(0)
                 .constraints(
                     [
-                        Constraint::Percentage(10),
-                        Constraint::Percentage(80),
-                        Constraint::Percentage(10),
+                        Constraint::Percentage(20),
+                        Constraint::Percentage(50),
+                        Constraint::Percentage(30),
                     ]
                     .as_ref(),
                 )
