@@ -220,7 +220,11 @@ impl CustomLists {
             self.current -= 1;
         }
         (
-            self.lists.get(self.current - 1),
+            if self.current <= 0 {
+                None
+            } else {
+                self.lists.get(self.current - 1)
+            },
             self.lists.get(self.current),
             self.lists.get(self.current + 1),
         )
@@ -234,7 +238,11 @@ impl CustomLists {
         Option<&CustomList>,
     ) {
         (
-            self.lists.get(self.current - 1),
+            if self.current <= 0 {
+                None
+            } else {
+                self.lists.get(self.current - 1)
+            },
             self.lists.get(self.current),
             self.lists.get(self.current + 1),
         )
