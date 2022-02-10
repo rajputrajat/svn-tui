@@ -66,6 +66,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             }
         }
 
+        let list = List::new(custom_list.get_list_items());
         terminal.draw(|frame| {
             let chunks = Layout::default()
                 .direction(Direction::Horizontal)
@@ -105,7 +106,6 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                 Block::default().title("right").borders(Borders::ALL),
                 chunks[2],
             );
-            let list = { List::new(custom_list.get_list_items()) };
             frame.render_stateful_widget(list, chunks[1], &mut custom_list.get_state_mut_ref());
         })?;
     }
