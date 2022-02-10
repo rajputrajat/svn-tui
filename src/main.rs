@@ -6,7 +6,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::{io, time::Duration};
+use std::{io, sync::mpsc::Receiver, time::Duration};
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -17,11 +17,11 @@ use tui::{
 
 fn main() -> Result<(), CustomError> {
     env_logger::init();
-    let clist = svn_data()?;
-    ui(clist)
+    let cb = svn_data_generator()?;
+    ui(&cb)
 }
 
-fn ui(custom_list: impl ListOps) -> Result<(), CustomError> {
+fn ui(data_generator: &'static DataGenerator) -> Result<(), CustomError> {
     // start terminal mode
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -30,8 +30,10 @@ fn ui(custom_list: impl ListOps) -> Result<(), CustomError> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut custom_list = custom_list;
-    custom_list.selected();
+    let mut custom_list = CustomList::from(vec![
+        "https://svn.ali.global/GDK_games/GDK_games/BLS/HHR".to_owned(),
+    ]);
+    let mut rx: Option<Receiver<Vec<String>>> = None;
 
     loop {
         if poll(Duration::from_millis(200))? {
@@ -41,7 +43,11 @@ fn ui(custom_list: impl ListOps) -> Result<(), CustomError> {
                         KeyCode::Esc => break,
                         KeyCode::Char('j') => custom_list.next(),
                         KeyCode::Char('k') => custom_list.prev(),
-                        KeyCode::Char('l') => custom_list.selected(),
+                        KeyCode::Char('l') => {
+                            if let Some(selected) = custom_list.get_current_selected() {
+                                rx = Some(request_new_data(selected, data_generator))
+                            }
+                        }
                         KeyCode::Char('h') => {} /*go back*/
                         _ => {}
                     }
@@ -49,9 +55,11 @@ fn ui(custom_list: impl ListOps) -> Result<(), CustomError> {
                 _ => {}
             }
         }
-        let mut list_items: Vec<ListItem> = vec![];
-        if let Some(lstitems) = custom_list.get_list_items() {
-            list_items = lstitems;
+
+        if let Some(rx) = rx {
+            if let Some(new_data) = get_new_data(rx) {
+                custom_list = CustomList::from(new_data);
+            }
         }
 
         terminal.draw(|frame| {
@@ -94,7 +102,7 @@ fn ui(custom_list: impl ListOps) -> Result<(), CustomError> {
                 chunks[2],
             );
             frame.render_stateful_widget(
-                List::new(list_items),
+                List::new(custom_list.get_list_items()),
                 chunks[1],
                 &mut custom_list.get_state_mut_ref(),
             );

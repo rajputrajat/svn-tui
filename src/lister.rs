@@ -9,19 +9,18 @@ use std::{
 use svn_cmd::{Credentials, SvnCmd, SvnError};
 use tui::widgets::{ListItem, ListState};
 
-pub(crate) trait ListOps<T = String> {
-    fn set_request_handle<F: 'static>(&mut self, hndl: F)
-    where
-        F: Fn(String, Sender<Vec<String>>) -> Result<(), CustomError> + Sync + Send;
-    fn replace_items(&mut self, items: Vec<T>);
+pub(crate) type DataGenerator =
+    dyn Fn(String, Sender<Vec<String>>) -> Result<(), CustomError> + Sync + Send;
+
+pub(crate) trait ListOps {
     fn next(&mut self);
     fn prev(&mut self);
-    fn selected(&mut self);
-    fn get_list_items(&mut self) -> Option<Vec<ListItem>>;
+    fn get_list_items(&self) -> Vec<ListItem>;
+    fn get_current_selected(&self) -> Option<String>;
     fn get_state_mut_ref(&mut self) -> &mut ListState;
 }
 
-pub(crate) fn svn_data() -> Result<CustomList, CustomError> {
+pub(crate) fn svn_data_generator() -> Result<Box<DataGenerator>, CustomError> {
     let cmd = SvnCmd::new(
         Credentials {
             username: "svc-p-blsrobo".to_owned(),
@@ -30,17 +29,29 @@ pub(crate) fn svn_data() -> Result<CustomList, CustomError> {
         None,
     )?;
 
-    let mut list = CustomList::from(vec![
-        "https://svn.ali.global/GDK_games/GDK_games/BLS/HHR".to_owned()
-    ]);
-    list.set_request_handle(move |target, tx| {
+    let generator = move |target: String, tx: Sender<Vec<String>>| {
         let slist = cmd.list(&target, false)?;
         let list_vec: Vec<String> = slist.iter().map(|i| i.name.clone()).collect();
         tx.send(list_vec).unwrap();
         Ok(())
-    });
+    };
 
-    Ok(list)
+    Ok(Box::new(generator))
+}
+
+pub(crate) fn request_new_data(
+    selected: String,
+    cb: &'static DataGenerator,
+) -> Receiver<Vec<String>> {
+    let (tx, rx) = channel::<Vec<String>>();
+    thread::spawn(move || {
+        (cb)(selected, tx).unwrap();
+    });
+    rx
+}
+
+pub(crate) fn get_new_data<T>(rx: Receiver<Vec<T>>) -> Option<Vec<T>> {
+    rx.try_recv().ok()
 }
 
 struct RequestHandle {
@@ -52,28 +63,9 @@ struct RequestHandle {
 pub(crate) struct CustomList {
     items: Vec<String>,
     state: ListState,
-    req_hndl: Option<RequestHandle>,
 }
 
 impl ListOps for CustomList {
-    fn set_request_handle<F: 'static>(&mut self, hndl: F)
-    where
-        F: Fn(String, Sender<Vec<String>>) -> Result<(), CustomError> + Sync + Send,
-    {
-        self.req_hndl.replace(RequestHandle {
-            hndl: Arc::new(hndl),
-            recv: None,
-            requested: false,
-        });
-    }
-
-    fn replace_items(&mut self, items: Vec<String>) {
-        if let Some(hndl) = &mut self.req_hndl {
-            hndl.requested = false;
-        }
-        self.items = items;
-    }
-
     fn next(&mut self) {
         if let Some(cur) = self.state.selected() {
             if self.items.len() + 1 > cur {
@@ -94,42 +86,19 @@ impl ListOps for CustomList {
         }
     }
 
-    fn selected(&mut self) {
-        let (tx, rx) = channel();
-        let req_data = self
-            .items
-            .get(self.state.selected().unwrap())
-            .cloned()
-            .unwrap();
-        if let Some(hndl) = &mut self.req_hndl {
-            hndl.recv = Some(rx);
-            hndl.requested = true;
-            let hndl = Arc::clone(&hndl.hndl);
-            thread::spawn(move || {
-                (hndl)(req_data, tx).unwrap();
-            });
-        }
-        // let new_data = rx.recv().unwrap();
-        // self.replace_items(new_data);
+    fn get_list_items(&self) -> Vec<ListItem> {
+        self.items
+            .iter()
+            .map(|i| ListItem::new(i.as_ref()))
+            .collect()
     }
 
-    fn get_list_items(&mut self) -> Option<Vec<ListItem>> {
-        if let Some(hndl) = &self.req_hndl {
-            if hndl.requested {
-                if let Some(rx) = &hndl.recv {
-                    if let Ok(new_data) = rx.try_recv() {
-                        self.replace_items(new_data);
-                        let list_items = self
-                            .items
-                            .iter()
-                            .map(|i| ListItem::new(i.as_str()))
-                            .collect();
-                        return Some(list_items);
-                    }
-                }
-            }
+    fn get_current_selected(&self) -> Option<String> {
+        if let Some(selected) = self.state.selected() {
+            return self.items.get(selected).cloned();
+        } else {
+            None
         }
-        None
     }
 
     fn get_state_mut_ref(&mut self) -> &mut ListState {
@@ -161,7 +130,6 @@ impl Default for CustomList {
         Self {
             items: vec![],
             state: Default::default(),
-            req_hndl: None,
         }
     }
 }
