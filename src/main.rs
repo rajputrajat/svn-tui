@@ -41,6 +41,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
 
     let mut custom_list = CustomList::from(vec!["HHR".to_owned()]);
     let mut custom_state = CustomListState::from(&custom_list);
+    let mut data_requested = false;
     let mut rx: Option<Receiver<Vec<String>>> = None;
 
     loop {
@@ -51,33 +52,41 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                     KeyCode::Char('j') => custom_state.inc(),
                     KeyCode::Char('k') => custom_state.dec(),
                     KeyCode::Char('l') => {
-                        if let Some(selected) = custom_list.get_current_selected(&custom_state) {
-                            debug!("requesting new data");
-                            let mut base = base_svn_url.lock().unwrap();
-                            base.push_str(&selected);
-                            base.push('/');
-                            rx = Some(request_new_data(
-                                base.to_string(),
-                                Arc::clone(&data_generator),
-                            ))
+                        if !data_requested {
+                            if let Some(selected) = custom_list.get_current_selected(&custom_state)
+                            {
+                                debug!("requesting new data");
+                                let mut base = base_svn_url.lock().unwrap();
+                                base.push_str(&selected);
+                                base.push('/');
+                                data_requested = true;
+                                rx = Some(request_new_data(
+                                    base.to_string(),
+                                    Arc::clone(&data_generator),
+                                ))
+                            }
                         }
                     }
                     KeyCode::Char('h') => {
-                        if let Some(_selected) = custom_list.get_current_selected(&custom_state) {
-                            debug!("requesting new data");
-                            let mut base = base_svn_url.lock().unwrap();
-                            let splitted: Vec<&str> = base.split('/').collect();
-                            let splitted = &splitted[..splitted.len() - 2];
-                            let new_str = splitted.iter().fold(String::new(), |mut acc, s| {
-                                acc.push_str(s);
-                                acc.push('/');
-                                acc
-                            });
-                            *base = new_str;
-                            rx = Some(request_new_data(
-                                base.to_string(),
-                                Arc::clone(&data_generator),
-                            ))
+                        if !data_requested {
+                            if let Some(_selected) = custom_list.get_current_selected(&custom_state)
+                            {
+                                debug!("requesting new data");
+                                let mut base = base_svn_url.lock().unwrap();
+                                let splitted: Vec<&str> = base.split('/').collect();
+                                let splitted = &splitted[..splitted.len() - 2];
+                                let new_str = splitted.iter().fold(String::new(), |mut acc, s| {
+                                    acc.push_str(s);
+                                    acc.push('/');
+                                    acc
+                                });
+                                *base = new_str;
+                                data_requested = true;
+                                rx = Some(request_new_data(
+                                    base.to_string(),
+                                    Arc::clone(&data_generator),
+                                ))
+                            }
                         }
                     }
                     _ => {}
@@ -89,6 +98,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             if let Some(new_data) = get_new_data(rx) {
                 debug!("data received");
                 custom_list = CustomList::from(new_data);
+                data_requested = false;
             }
         }
 
