@@ -89,29 +89,19 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                 Block::default().title("left").borders(Borders::ALL),
                 chunks[0],
             );
-            frame.render_widget(
-                List::new([
-                    ListItem::new("hey"),
-                    ListItem::new("what"),
-                    ListItem::new("are"),
-                    ListItem::new("you"),
-                    ListItem::new("doing"),
-                ])
-                .block(
-                    Block::default()
-                        .title("middle")
-                        .borders(Borders::ALL)
-                        .border_style(Style::default().fg(Color::LightCyan))
-                        .border_type(BorderType::Rounded),
-                ),
-                chunks[1],
-            );
+
             frame.render_widget(
                 Block::default().title("right").borders(Borders::ALL),
                 chunks[2],
             );
 
-            let list = List::new(custom_list.get_list_items());
+            let list = List::new(custom_list.get_list_items()).block(
+                Block::default()
+                    .title("middle")
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::LightCyan))
+                    .border_type(BorderType::Rounded),
+            );
             frame.render_stateful_widget(list, chunks[1], &mut custom_state.state);
         })?;
     }
