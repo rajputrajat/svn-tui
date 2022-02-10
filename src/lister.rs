@@ -1,4 +1,4 @@
-use log::{debug, info};
+use log::debug;
 use std::{
     collections::HashMap,
     io,
