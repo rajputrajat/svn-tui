@@ -6,7 +6,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use log::debug;
+use log::{debug, info};
 use std::{
     io,
     sync::{mpsc::Receiver, Arc, Mutex},
@@ -36,7 +36,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     let mut terminal = Terminal::new(backend)?;
 
     let base_svn_url = Arc::new(Mutex::new(
-        "https://svn.ali.global/GDK_games/GDK_games/BLS".to_owned(),
+        "https://svn.ali.global/GDK_games/GDK_games/BLS/".to_owned(),
     ));
 
     let mut custom_list = CustomList::from(vec!["HHR".to_owned()]);
@@ -53,15 +53,33 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                     KeyCode::Char('l') => {
                         if let Some(selected) = custom_list.get_current_selected(&custom_state) {
                             debug!("requesting new data");
-                            base_svn_url.lock().unwrap().push('/');
-                            base_svn_url.lock().unwrap().push_str(&selected);
+                            let mut base = base_svn_url.lock().unwrap();
+                            base.push_str(&selected);
+                            base.push('/');
                             rx = Some(request_new_data(
-                                base_svn_url.lock().unwrap().to_string(),
+                                base.to_string(),
                                 Arc::clone(&data_generator),
                             ))
                         }
                     }
-                    KeyCode::Char('h') => {} /*go back*/
+                    KeyCode::Char('h') => {
+                        if let Some(_selected) = custom_list.get_current_selected(&custom_state) {
+                            debug!("requesting new data");
+                            let mut base = base_svn_url.lock().unwrap();
+                            let splitted: Vec<&str> = base.split('/').collect();
+                            let splitted = &splitted[..splitted.len() - 2];
+                            let new_str = splitted.iter().fold(String::new(), |mut acc, s| {
+                                acc.push_str(s);
+                                acc.push('/');
+                                acc
+                            });
+                            *base = new_str;
+                            rx = Some(request_new_data(
+                                base.to_string(),
+                                Arc::clone(&data_generator),
+                            ))
+                        }
+                    }
                     _ => {}
                 }
             }
