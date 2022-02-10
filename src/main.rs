@@ -15,7 +15,7 @@ use std::{
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     widgets::{Block, BorderType, Borders, List},
     Terminal,
 };
@@ -126,13 +126,16 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                 chunks[2],
             );
 
-            let list = List::new(custom_list.get_list_items()).block(
-                Block::default()
-                    .title("middle")
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::LightCyan))
-                    .border_type(BorderType::Rounded),
-            );
+            let list = List::new(custom_list.get_list_items())
+                .block(
+                    Block::default()
+                        .title("middle")
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(Color::LightCyan))
+                        .border_type(BorderType::Rounded),
+                )
+                .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+                .highlight_symbol(">>");
             frame.render_stateful_widget(list, chunks[1], &mut custom_state.state);
         })?;
     }
