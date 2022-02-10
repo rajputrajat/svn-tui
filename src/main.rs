@@ -98,6 +98,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             if let Some(new_data) = get_new_data(rx) {
                 debug!("data received");
                 custom_list = CustomList::from(new_data);
+                custom_state = CustomListState::from(&custom_list);
                 data_requested = false;
             }
         }
