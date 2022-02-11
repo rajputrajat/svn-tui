@@ -52,6 +52,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
         INITIAL_URL.to_owned(),
         Arc::clone(&data_generator),
     ));
+    let default_block = Block::default().borders(Borders::ALL);
     loop {
         if poll(Duration::from_millis(200))? {
             if let Event::Key(KeyEvent { code, .. }) = read()? {
@@ -83,27 +84,6 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                             if let (_, Some(custom_list), _) = custom_lists.go_back() {
                                 custom_state = CustomListState::from(custom_list);
                             }
-
-                            // if let Some(_selected) =
-                            //     custom_list.get_current_selected(&custom_state)
-                            // {
-                            // debug!("requesting new data");
-                            // let mut base = base_svn_url.lock().unwrap();
-                            // let splitted: Vec<&str> = base.split('/').collect();
-                            // let splitted = &splitted[..splitted.len() - 2];
-                            // let new_str =
-                            //     splitted.iter().fold(String::new(), |mut acc, s| {
-                            //         acc.push_str(s);
-                            //         acc.push('/');
-                            //         acc
-                            //     });
-                            // *base = new_str;
-                            // new_data_request = Some(Request::Forward);
-                            // rx = Some(request_new_data(
-                            //     base.to_string(),
-                            //     Arc::clone(&data_generator),
-                            // ))
-                            // }
                         }
                     }
                     _ => {}
@@ -126,6 +106,20 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
         }
 
         terminal.draw(|frame| {
+            let vertical_chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .margin(0)
+                .constraints(
+                    [
+                        Constraint::Percentage(5),
+                        Constraint::Percentage(90),
+                        Constraint::Percentage(5),
+                    ]
+                    .as_ref(),
+                )
+                .split(frame.size());
+            frame.render_widget(default_block.clone().title("commands"), vertical_chunks[0]);
+            frame.render_widget(default_block.clone().title("messages"), vertical_chunks[2]);
             let chunks = Layout::default()
                 .direction(Direction::Horizontal)
                 .margin(0)
@@ -137,41 +131,33 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                     ]
                     .as_ref(),
                 )
-                .split(frame.size());
+                .split(vertical_chunks[1]);
 
             let (prev, curr, next) = custom_lists.get_current();
 
             if let Some(prev) = prev {
                 frame.render_widget(
-                    List::new(prev.get_list_items())
-                        .block(Block::default().title("left").borders(Borders::ALL)),
+                    List::new(prev.get_list_items()).block(default_block.clone().title("previous")),
                     chunks[0],
                 );
             } else {
-                frame.render_widget(
-                    Block::default().title("left").borders(Borders::ALL),
-                    chunks[0],
-                );
+                frame.render_widget(default_block.clone().title("previous"), chunks[0]);
             }
 
             if let Some(next) = next {
                 frame.render_widget(
-                    List::new(next.get_list_items())
-                        .block(Block::default().title("right").borders(Borders::ALL)),
+                    List::new(next.get_list_items()).block(default_block.clone().title("next")),
                     chunks[2],
                 );
             } else {
-                frame.render_widget(
-                    Block::default().title("right").borders(Borders::ALL),
-                    chunks[2],
-                );
+                frame.render_widget(default_block.clone().title("next"), chunks[2]);
             }
 
             let list = List::new(curr.unwrap().get_list_items())
                 .block(
-                    Block::default()
+                    default_block
+                        .clone()
                         .title("middle")
-                        .borders(Borders::ALL)
                         .border_style(Style::default().fg(Color::LightCyan))
                         .border_type(BorderType::Rounded),
                 )
