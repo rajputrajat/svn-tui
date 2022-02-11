@@ -18,7 +18,8 @@ use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    widgets::{Block, BorderType, Borders, List},
+    text::{Span, Spans},
+    widgets::{Block, BorderType, Borders, List, Paragraph},
     Terminal,
 };
 
@@ -119,7 +120,16 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                 )
                 .split(frame.size());
             frame.render_widget(default_block.clone().title("commands"), vertical_chunks[0]);
-            frame.render_widget(default_block.clone().title("messages"), vertical_chunks[2]);
+
+            let text = vec![Spans::from(Span::styled(
+                "test",
+                Style::default().fg(Color::LightMagenta),
+            ))];
+            frame.render_widget(
+                Paragraph::new(text).block(default_block.clone().title("messages")),
+                vertical_chunks[2],
+            );
+
             let chunks = Layout::default()
                 .direction(Direction::Horizontal)
                 .margin(0)
