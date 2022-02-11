@@ -57,9 +57,9 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             if let Event::Key(KeyEvent { code, .. }) = read()? {
                 match code {
                     KeyCode::Esc => break,
-                    KeyCode::Char('j') => custom_state.inc(),
-                    KeyCode::Char('k') => custom_state.dec(),
-                    KeyCode::Char('l') => {
+                    KeyCode::Char('j') | KeyCode::Down => custom_state.inc(),
+                    KeyCode::Char('k') | KeyCode::Up => custom_state.dec(),
+                    KeyCode::Char('l') | KeyCode::Right => {
                         if new_data_request.is_none() {
                             if let (_, Some(custom_list), _) = custom_lists.get_current() {
                                 if let Some(selected) =
@@ -78,7 +78,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                             }
                         }
                     }
-                    KeyCode::Char('h') => {
+                    KeyCode::Char('h') | KeyCode::Left => {
                         if new_data_request.is_none() {
                             if let (_, Some(custom_list), _) = custom_lists.go_back() {
                                 custom_state = CustomListState::from(custom_list);
