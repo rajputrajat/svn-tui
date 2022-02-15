@@ -92,10 +92,10 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     let update_svn_info_str = |entry: &ListEntry| {
         let mut sis = svn_info_list.lock().unwrap();
         *sis = vec![
-            ListItem::new(format!("url: {}", entry.name)),
+            ListItem::new(format!("     url: {}", entry.name)),
             ListItem::new(format!("revision: {}", entry.commit.revision)),
-            ListItem::new(format!("author: {}", entry.commit.author)),
-            ListItem::new(format!("date: {}", entry.commit.date)),
+            ListItem::new(format!("  author: {}", entry.commit.author)),
+            ListItem::new(format!("    date: {}", entry.commit.date)),
         ];
     };
     loop {
