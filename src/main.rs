@@ -72,21 +72,21 @@ const MIDDLE: &str = "SVN list";
 const INFO: &str = "info";
 
 fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
-    let mut custom_lists = CustomLists::from(vec![CustomList::from(INITIAL_URL.to_owned())]);
-
+    let base_url = if let Ok(info_entry) = svn_helper::info(&svn_helper::new()) {
+        info_entry.entry.url
+    } else {
+        INITIAL_URL.to_owned()
+    };
+    let mut custom_lists = CustomLists::from(vec![CustomList::from(base_url.clone())]);
     let mut term = Terminal_::create()?;
-
     let mut custom_state = {
         let (_, custom_list, _) = custom_lists.get_current();
         CustomListState::from(custom_list.ok_or_else(|| CustomError::NoDataToList)?)
     };
-
-    let mut new_data_request: Option<Request> = Some(Request::Forward(INITIAL_URL.to_owned()));
-    let mut rx: Option<Receiver<ResultSvnList>> = Some(request_new_data(
-        INITIAL_URL.to_owned(),
-        Arc::clone(&fetcher),
-    ));
-    let mut message = format!("requesting svn list for '{}'", INITIAL_URL);
+    let mut new_data_request: Option<Request> = Some(Request::Forward(base_url.clone()));
+    let mut rx: Option<Receiver<ResultSvnList>> =
+        Some(request_new_data(base_url.clone(), Arc::clone(&fetcher)));
+    let mut message = format!("requesting svn list for '{}'", &base_url);
     let default_block = Block::default().borders(Borders::ALL);
     let svn_info_list = Arc::new(Mutex::new(vec![]));
     let update_svn_info_str = |entry: &ListEntry| {
