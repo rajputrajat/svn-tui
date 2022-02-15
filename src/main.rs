@@ -204,21 +204,28 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             if let Some(next) = next {
                 frame.render_widget(
                     List::new(next.get_list_items()).block(default_block.clone().title(NEXT)),
-                    chunks[2],
+                    chunks[3],
                 );
             } else {
-                frame.render_widget(default_block.clone().title(NEXT), chunks[2]);
+                frame.render_widget(default_block.clone().title(NEXT), chunks[3]);
             }
-            frame.render_widget(default_block.clone().title("info"), chunks[3]);
+            frame.render_widget(
+                default_block
+                    .clone()
+                    .title("info")
+                    .border_style(Style::default().fg(Color::LightCyan))
+                    .border_type(BorderType::Thick),
+                chunks[2],
+            );
 
             if let Some(curr) = curr {
                 let list = List::new(curr.get_list_items())
                     .block(
                         default_block
                             .clone()
-                            .title("middle")
+                            .title(MIDDLE)
                             .border_style(Style::default().fg(Color::LightCyan))
-                            .border_type(BorderType::Rounded),
+                            .border_type(BorderType::Thick),
                     )
                     .highlight_style(
                         Style::default()
