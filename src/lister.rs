@@ -58,7 +58,7 @@ pub(crate) fn svn_data_generator(cache: Cache) -> Result<Arc<DataGenerator>, Cus
                 .unwrap()
                 .insert(target, (list.clone(), SystemTime::now()));
             svn_list = Some(list);
-        };
+        }
         debug!("data: '{svn_list:?}'");
         tx.send(svn_list.unwrap()).unwrap();
         debug!("info sent");
@@ -68,12 +68,16 @@ pub(crate) fn svn_data_generator(cache: Cache) -> Result<Arc<DataGenerator>, Cus
     Ok(Arc::new(generator))
 }
 
-pub(crate) fn request_new_data(selected: String, cb: Arc<DataGenerator>) -> Receiver<SvnList> {
+pub(crate) fn request_new_data(
+    selected: String,
+    cb: Arc<DataGenerator>,
+) -> Result<Receiver<SvnList>, CustomError> {
     let (tx, rx) = channel::<SvnList>();
     thread::spawn(move || {
-        (cb)(selected, tx).unwrap();
+        (cb)(selected, tx)?;
+        Ok::<(), CustomError>(())
     });
-    rx
+    Ok(rx)
 }
 
 pub(crate) fn get_new_data(rx: &Receiver<SvnList>) -> Option<SvnList> {
@@ -174,6 +178,7 @@ pub(crate) enum CustomError {
     Io(io::Error),
     Svn(SvnError),
     SystemTime(SystemTimeError),
+    NoDataToList,
 }
 
 impl From<io::Error> for CustomError {

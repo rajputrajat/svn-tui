@@ -45,14 +45,14 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
 
     let mut custom_state = {
         let (_, custom_list, _) = custom_lists.get_current();
-        CustomListState::from(custom_list.unwrap())
+        CustomListState::from(custom_list.ok_or_else(|| CustomError::NoDataToList)?)
     };
 
     let mut new_data_request: Option<Request> = Some(Request::Forward(INITIAL_URL.to_owned()));
     let mut rx: Option<Receiver<SvnList>> = Some(request_new_data(
         INITIAL_URL.to_owned(),
         Arc::clone(&data_generator),
-    ));
+    )?);
     let default_block = Block::default().borders(Borders::ALL);
     loop {
         if poll(Duration::from_millis(200))? {
@@ -75,7 +75,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                                     rx = Some(request_new_data(
                                         base.to_string(),
                                         Arc::clone(&data_generator),
-                                    ))
+                                    )?)
                                 }
                             }
                         }
@@ -163,17 +163,21 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                 frame.render_widget(default_block.clone().title("next"), chunks[2]);
             }
 
-            let list = List::new(curr.unwrap().get_list_items())
-                .block(
-                    default_block
-                        .clone()
-                        .title("middle")
-                        .border_style(Style::default().fg(Color::LightCyan))
-                        .border_type(BorderType::Rounded),
-                )
-                .highlight_style(Style::default().add_modifier(Modifier::BOLD))
-                .highlight_symbol(">>");
-            frame.render_stateful_widget(list, chunks[1], &mut custom_state.state);
+            if let Some(curr) = curr {
+                let list = List::new(curr.get_list_items())
+                    .block(
+                        default_block
+                            .clone()
+                            .title("middle")
+                            .border_style(Style::default().fg(Color::LightCyan))
+                            .border_type(BorderType::Rounded),
+                    )
+                    .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+                    .highlight_symbol(">>");
+                frame.render_stateful_widget(list, chunks[1], &mut custom_state.state);
+            } else {
+                frame.render_widget(default_block.clone().title("middle"), chunks[1]);
+            }
         })?;
     }
 
