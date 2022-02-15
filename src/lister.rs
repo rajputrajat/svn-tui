@@ -9,7 +9,7 @@ use std::{
     thread,
     time::{Duration, SystemTime, SystemTimeError},
 };
-use svn_cmd::{Credentials, SvnCmd, SvnError, SvnList};
+use svn_cmd::{Credentials, ListEntry, SvnCmd, SvnError, SvnList};
 use tui::widgets::{ListItem, ListState};
 
 const MAX_VALIDITY_OF_CACHED_LIST: Duration = Duration::from_secs(15 * 60);
@@ -20,7 +20,7 @@ pub(crate) type DataGenerator = dyn Fn(String, Sender<ResultSvnList>) + Sync + S
 pub(crate) trait ListOps {
     fn len(&self) -> usize;
     fn get_list_items(&self) -> Vec<ListItem>;
-    fn get_current_selected(&self, state: &impl ListStateOps) -> Option<String>;
+    fn get_current_selected(&self, state: &impl ListStateOps) -> Option<ListEntry>;
 }
 
 pub(crate) trait ListStateOps {
@@ -133,10 +133,10 @@ impl ListOps for CustomList {
             .collect()
     }
 
-    fn get_current_selected(&self, state: &impl ListStateOps) -> Option<String> {
+    fn get_current_selected(&self, state: &impl ListStateOps) -> Option<ListEntry> {
         if let Some(selected) = state.get() {
             if let Some(item) = self.items.iter().nth(selected) {
-                return Some(item.name.clone());
+                return Some(item.clone());
             }
         }
         None

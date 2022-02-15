@@ -13,6 +13,7 @@ use std::{
     sync::{mpsc::Receiver, Arc, Mutex},
     time::Duration,
 };
+use svn_cmd::PathType;
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -66,15 +67,22 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                                 if let Some(selected) =
                                     custom_list.get_current_selected(&custom_state)
                                 {
-                                    debug!("requesting new data");
-                                    let mut base = custom_list.base_url.clone();
-                                    base.push_str(&selected);
-                                    base.push('/');
-                                    new_data_request = Some(Request::Forward(base.clone()));
-                                    rx = Some(request_new_data(
-                                        base.to_string(),
-                                        Arc::clone(&data_generator),
-                                    ))
+                                    if selected.kind == PathType::Dir {
+                                        debug!("requesting new data");
+                                        let mut base = custom_list.base_url.clone();
+                                        base.push_str(&selected.name);
+                                        base.push('/');
+                                        new_data_request = Some(Request::Forward(base.clone()));
+                                        rx = Some(request_new_data(
+                                            base.to_string(),
+                                            Arc::clone(&data_generator),
+                                        ))
+                                    } else {
+                                        debug!(
+                                            "file is not listable, so ignore: {}",
+                                            selected.name
+                                        );
+                                    }
                                 }
                             }
                         }
