@@ -13,7 +13,7 @@ use std::{
     sync::{mpsc::Receiver, Arc, Mutex},
     time::Duration,
 };
-use svn_cmd::PathType;
+use svn_cmd::{ListEntry, PathType};
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -69,6 +69,7 @@ const INITIAL_URL: &str = "https://svn.ali.global/GDK_games/GDK_games/BLS/";
 const PREV: &str = " <--- ";
 const NEXT: &str = " ---> ";
 const MIDDLE: &str = "SVN list";
+const INFO: &str = "info";
 
 fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     let mut custom_lists = CustomLists::from(vec![CustomList::from(INITIAL_URL.to_owned())]);
@@ -87,9 +88,22 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     ));
     let mut message = format!("requesting svn list for '{}'", INITIAL_URL);
     let default_block = Block::default().borders(Borders::ALL);
+    let svn_info_spans = Arc::new(Mutex::new(vec![]));
+    let update_svn_info_str = |entry: &ListEntry| {
+        let mut sis = svn_info_spans.lock().unwrap();
+        if sis.is_empty() {
+            *sis = vec![
+                Span::raw(format!("url: {}", entry.name)),
+                Span::raw(format!("revision: {}", entry.commit.revision)),
+                Span::raw(format!("author: {}", entry.commit.author)),
+                Span::raw(format!("date: {}", entry.commit.date)),
+            ];
+        }
+    };
     loop {
         if poll(Duration::from_millis(200))? {
             if let Event::Key(KeyEvent { code, .. }) = read()? {
+                svn_info_spans.lock().unwrap().clear();
                 match code {
                     KeyCode::Esc => break,
                     KeyCode::Char('j') | KeyCode::Down => custom_state.inc(),
@@ -151,6 +165,11 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                 }
             }
         }
+        if let (_, Some(custom_list), _) = custom_lists.get_current() {
+            if let Some(selected) = custom_list.get_current_selected(&custom_state) {
+                update_svn_info_str(&selected);
+            }
+        }
 
         term.get_int().draw(|frame| {
             let vertical_chunks = Layout::default()
@@ -209,12 +228,19 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             } else {
                 frame.render_widget(default_block.clone().title(NEXT), chunks[3]);
             }
+
+            let spans = {
+                let locked = svn_info_spans.lock().unwrap();
+                Spans::from(locked.clone())
+            };
             frame.render_widget(
-                default_block
-                    .clone()
-                    .title("info")
-                    .border_style(Style::default().fg(Color::LightCyan))
-                    .border_type(BorderType::Thick),
+                Paragraph::new(vec![spans]).block(
+                    default_block
+                        .clone()
+                        .title(INFO)
+                        .border_style(Style::default().fg(Color::LightCyan))
+                        .border_type(BorderType::Thick),
+                ),
                 chunks[2],
             );
 
@@ -232,7 +258,6 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                             .add_modifier(Modifier::BOLD)
                             .fg(Color::LightYellow),
                     )
-                    //.style(Style::default().bg(Color::Blue))
                     .style(Style::default().fg(Color::Blue))
                     .highlight_symbol(">>");
                 frame.render_stateful_widget(list, chunks[1], &mut custom_state.state);
