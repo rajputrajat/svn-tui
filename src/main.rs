@@ -73,7 +73,9 @@ const INFO: &str = "info";
 
 fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
     let base_url = if let Ok(info_entry) = svn_helper::info(&svn_helper::new()) {
-        info_entry.entry.url
+        let mut url = info_entry.entry.url;
+        url.push('/');
+        url
     } else {
         INITIAL_URL.to_owned()
     };
