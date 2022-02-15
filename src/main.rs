@@ -9,7 +9,7 @@ use crossterm::{
 use log::debug;
 use std::{
     collections::HashMap,
-    io,
+    io::{self, Stdout},
     sync::{mpsc::Receiver, Arc, Mutex},
     time::Duration,
 };
@@ -23,6 +23,41 @@ use tui::{
     Terminal,
 };
 
+struct Terminal_ {
+    term: Terminal<CrosstermBackend<Stdout>>,
+}
+
+impl Terminal_ {
+    fn create() -> Result<Self, CustomError> {
+        // start terminal mode
+        enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        let backend = CrosstermBackend::new(stdout);
+        Ok(Self {
+            term: Terminal::new(backend)?,
+        })
+    }
+
+    fn get_int(&mut self) -> &mut Terminal<CrosstermBackend<Stdout>> {
+        &mut self.term
+    }
+}
+
+impl Drop for Terminal_ {
+    fn drop(&mut self) {
+        // restore terminal
+        disable_raw_mode().unwrap();
+        execute!(
+            self.term.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        )
+        .unwrap();
+        self.term.show_cursor().unwrap();
+    }
+}
+
 fn main() -> Result<(), CustomError> {
     env_logger::init();
     let list_cache: Cache = Arc::new(Mutex::new(HashMap::new()));
@@ -33,15 +68,9 @@ fn main() -> Result<(), CustomError> {
 const INITIAL_URL: &str = "https://svn.ali.global/GDK_games/GDK_games/BLS/";
 
 fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
-    // start terminal mode
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
     let mut custom_lists = CustomLists::from(vec![CustomList::from(INITIAL_URL.to_owned())]);
+
+    let mut term = Terminal_::create()?;
 
     let mut custom_state = {
         let (_, custom_list, _) = custom_lists.get_current();
@@ -120,7 +149,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             }
         }
 
-        terminal.draw(|frame| {
+        term.get_int().draw(|frame| {
             let vertical_chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .margin(0)
@@ -200,15 +229,6 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             }
         })?;
     }
-
-    // restore terminal
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
 
     Ok(())
 }
