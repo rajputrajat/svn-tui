@@ -66,6 +66,9 @@ fn main() -> Result<(), CustomError> {
 }
 
 const INITIAL_URL: &str = "https://svn.ali.global/GDK_games/GDK_games/BLS/";
+const PREV: &str = " <--- ";
+const NEXT: &str = " ---> ";
+const MIDDLE: &str = "SVN list";
 
 fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     let mut custom_lists = CustomLists::from(vec![CustomList::from(INITIAL_URL.to_owned())]);
@@ -178,9 +181,10 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                 .margin(0)
                 .constraints(
                     [
-                        Constraint::Percentage(20),
-                        Constraint::Percentage(50),
-                        Constraint::Percentage(30),
+                        Constraint::Percentage(25),
+                        Constraint::Percentage(25),
+                        Constraint::Percentage(25),
+                        Constraint::Percentage(25),
                     ]
                     .as_ref(),
                 )
@@ -190,21 +194,22 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
 
             if let Some(prev) = prev {
                 frame.render_widget(
-                    List::new(prev.get_list_items()).block(default_block.clone().title("previous")),
+                    List::new(prev.get_list_items()).block(default_block.clone().title(PREV)),
                     chunks[0],
                 );
             } else {
-                frame.render_widget(default_block.clone().title("previous"), chunks[0]);
+                frame.render_widget(default_block.clone().title(PREV), chunks[0]);
             }
 
             if let Some(next) = next {
                 frame.render_widget(
-                    List::new(next.get_list_items()).block(default_block.clone().title("next")),
+                    List::new(next.get_list_items()).block(default_block.clone().title(NEXT)),
                     chunks[2],
                 );
             } else {
-                frame.render_widget(default_block.clone().title("next"), chunks[2]);
+                frame.render_widget(default_block.clone().title(NEXT), chunks[2]);
             }
+            frame.render_widget(default_block.clone().title("info"), chunks[3]);
 
             if let Some(curr) = curr {
                 let list = List::new(curr.get_list_items())
@@ -225,7 +230,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                     .highlight_symbol(">>");
                 frame.render_stateful_widget(list, chunks[1], &mut custom_state.state);
             } else {
-                frame.render_widget(default_block.clone().title("middle"), chunks[1]);
+                frame.render_widget(default_block.clone().title(MIDDLE), chunks[1]);
             }
         })?;
     }
