@@ -211,9 +211,9 @@ dependencies = [
 
 [[package]]
 name = "ntapi"
-version = "0.3.6"
+version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f6bb902e437b6d86e03cce10a7e2af662292c5dfef23b65899ea3ac9354ad44"
+checksum = "c28774a7fd2fbb4f0babd8237ce554b73af68021b5f695a3cebd6c59bac0980f"
 dependencies = [
  "winapi",
 ]
@@ -399,7 +399,7 @@ checksum = "f2dd574626839106c320a323308629dcb1acfc96e32a8cba364ddc61ac23ee83"
 [[package]]
 name = "svn-cmd"
 version = "0.1.0"
-source = "git+https://github.com/rajputrajat/svn-cmd#dc31f48b171abac5a80f2395c92b42da4d643898"
+source = "git+https://github.com/rajputrajat/svn-cmd#74c18ab8ff3bdc54db13504cc356472ac0aac1fd"
 dependencies = [
  "log",
  "regex",

@@ -13,7 +13,6 @@ use std::{
     sync::{mpsc::Receiver, Arc, Mutex},
     time::Duration,
 };
-use svn_cmd::SvnList;
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -26,7 +25,7 @@ use tui::{
 fn main() -> Result<(), CustomError> {
     env_logger::init();
     let list_cache: Cache = Arc::new(Mutex::new(HashMap::new()));
-    let cb = svn_data_generator(Arc::clone(&list_cache))?;
+    let cb = svn_data_generator(Arc::clone(&list_cache));
     ui(cb)
 }
 
@@ -49,10 +48,10 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     };
 
     let mut new_data_request: Option<Request> = Some(Request::Forward(INITIAL_URL.to_owned()));
-    let mut rx: Option<Receiver<SvnList>> = Some(request_new_data(
+    let mut rx: Option<Receiver<ResultSvnList>> = Some(request_new_data(
         INITIAL_URL.to_owned(),
         Arc::clone(&data_generator),
-    )?);
+    ));
     let default_block = Block::default().borders(Borders::ALL);
     loop {
         if poll(Duration::from_millis(200))? {
@@ -75,7 +74,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                                     rx = Some(request_new_data(
                                         base.to_string(),
                                         Arc::clone(&data_generator),
-                                    )?)
+                                    ))
                                 }
                             }
                         }
@@ -96,7 +95,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             if let Some(rx) = &rx {
                 if let Some(new_data) = get_new_data(rx) {
                     debug!("data received");
-                    let new_list = CustomList::from((new_data, base_url.to_owned()));
+                    let new_list = CustomList::from((new_data?, base_url.to_owned()));
                     custom_lists.add_new_list(new_list);
                     if let (_, Some(list), _) = custom_lists.get_current() {
                         custom_state = CustomListState::from(list);

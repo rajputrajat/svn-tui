@@ -14,8 +14,8 @@ use tui::widgets::{ListItem, ListState};
 
 const MAX_VALIDITY_OF_CACHED_LIST: Duration = Duration::from_secs(15 * 60);
 
-pub(crate) type DataGenerator =
-    dyn Fn(String, Sender<SvnList>) -> Result<(), CustomError> + Sync + Send;
+pub(crate) type ResultSvnList = Result<SvnList, CustomError>;
+pub(crate) type DataGenerator = dyn Fn(String, Sender<ResultSvnList>) + Sync + Send;
 
 pub(crate) trait ListOps {
     fn len(&self) -> usize;
@@ -31,56 +31,55 @@ pub(crate) trait ListStateOps {
 
 pub(crate) type Cache = Arc<Mutex<HashMap<String, (SvnList, SystemTime)>>>;
 
-pub(crate) fn svn_data_generator(cache: Cache) -> Result<Arc<DataGenerator>, CustomError> {
+pub(crate) fn svn_data_generator(cache: Cache) -> Arc<DataGenerator> {
     let cmd = SvnCmd::new(
         Credentials {
             username: "svc-p-blsrobo".to_owned(),
             password: "Comewel@12345".to_owned(),
         },
         None,
-    )?;
+    );
 
-    let generator = move |target: String, tx: Sender<SvnList>| {
+    let generator = move |target: String, tx: Sender<ResultSvnList>| {
         debug!("request for '{target}'");
-        let mut svn_list: Option<SvnList> = None;
-        if let Some((cached_list, system_time)) = cache.lock().unwrap().get(&target) {
-            if SystemTime::now().duration_since(*system_time)? < MAX_VALIDITY_OF_CACHED_LIST {
-                svn_list = Some(cached_list.clone());
-                // list_vec = cached_list.iter().map(|i| i.name.clone()).collect()
-            } else {
-                cache.lock().unwrap().remove(&target);
+        let get_svnlist = || {
+            let mut svn_list: Option<SvnList> = None;
+            if let Some((cached_list, system_time)) = cache.lock().unwrap().get(&target) {
+                if SystemTime::now().duration_since(*system_time)? < MAX_VALIDITY_OF_CACHED_LIST {
+                    svn_list = Some(cached_list.clone());
+                } else {
+                    cache.lock().unwrap().remove(&target);
+                }
             }
-        }
-        if svn_list.is_none() {
-            let list = cmd.list(&target, false)?;
-            cache
-                .lock()
-                .unwrap()
-                .insert(target, (list.clone(), SystemTime::now()));
-            svn_list = Some(list);
-        }
-        debug!("data: '{svn_list:?}'");
-        tx.send(svn_list.unwrap()).unwrap();
+            if svn_list.is_none() {
+                let list = cmd.list(&target, false)?;
+                cache
+                    .lock()
+                    .unwrap()
+                    .insert(target, (list.clone(), SystemTime::now()));
+                svn_list = Some(list);
+            }
+            Ok::<SvnList, CustomError>(svn_list.unwrap())
+        };
+        let svn_list_res = get_svnlist();
+        debug!("data: '{svn_list_res:?}'");
+        tx.send(svn_list_res).unwrap();
         debug!("info sent");
-        Ok(())
     };
 
-    Ok(Arc::new(generator))
+    Arc::new(generator)
 }
 
 pub(crate) fn request_new_data(
     selected: String,
     cb: Arc<DataGenerator>,
-) -> Result<Receiver<SvnList>, CustomError> {
-    let (tx, rx) = channel::<SvnList>();
-    thread::spawn(move || {
-        (cb)(selected, tx)?;
-        Ok::<(), CustomError>(())
-    });
-    Ok(rx)
+) -> Receiver<ResultSvnList> {
+    let (tx, rx) = channel::<ResultSvnList>();
+    thread::spawn(move || (cb)(selected, tx));
+    rx
 }
 
-pub(crate) fn get_new_data(rx: &Receiver<SvnList>) -> Option<SvnList> {
+pub(crate) fn get_new_data(rx: &Receiver<ResultSvnList>) -> Option<ResultSvnList> {
     rx.try_recv().ok()
 }
 
