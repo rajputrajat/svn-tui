@@ -15,7 +15,7 @@ use tui::widgets::{ListItem, ListState};
 const MAX_VALIDITY_OF_CACHED_LIST: Duration = Duration::from_secs(15 * 60);
 
 pub(crate) type ResultSvnList = Result<SvnList, CustomError>;
-pub(crate) type DataGenerator = dyn Fn(String, Sender<ResultSvnList>) + Sync + Send;
+pub(crate) type ListFetcher = dyn Fn(String, Sender<ResultSvnList>) + Sync + Send;
 
 pub(crate) trait ListOps {
     fn len(&self) -> usize;
@@ -51,8 +51,8 @@ pub(crate) mod svn_helper {
         Ok(info)
     }
 
-    pub(crate) fn list_fetcher(cmd: SvnCmd, cache: Cache) -> Arc<DataGenerator> {
-        let generator = move |target: String, tx: Sender<ResultSvnList>| {
+    pub(crate) fn list_fetcher(cmd: SvnCmd, cache: Cache) -> Arc<ListFetcher> {
+        let fetcher = move |target: String, tx: Sender<ResultSvnList>| {
             debug!("request for '{target}'");
             let get_svnlist = || {
                 let mut svn_list: Option<SvnList> = None;
@@ -79,14 +79,11 @@ pub(crate) mod svn_helper {
             tx.send(svn_list_res).unwrap();
             debug!("info sent");
         };
-        Arc::new(generator)
+        Arc::new(fetcher)
     }
 }
 
-pub(crate) fn request_new_data(
-    selected: String,
-    cb: Arc<DataGenerator>,
-) -> Receiver<ResultSvnList> {
+pub(crate) fn request_new_data(selected: String, cb: Arc<ListFetcher>) -> Receiver<ResultSvnList> {
     let (tx, rx) = channel::<ResultSvnList>();
     thread::spawn(move || (cb)(selected, tx));
     rx

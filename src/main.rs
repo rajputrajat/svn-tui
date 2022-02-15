@@ -71,7 +71,7 @@ const NEXT: &str = " ---> ";
 const MIDDLE: &str = "SVN list";
 const INFO: &str = "info";
 
-fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
+fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
     let mut custom_lists = CustomLists::from(vec![CustomList::from(INITIAL_URL.to_owned())]);
 
     let mut term = Terminal_::create()?;
@@ -84,7 +84,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     let mut new_data_request: Option<Request> = Some(Request::Forward(INITIAL_URL.to_owned()));
     let mut rx: Option<Receiver<ResultSvnList>> = Some(request_new_data(
         INITIAL_URL.to_owned(),
-        Arc::clone(&data_generator),
+        Arc::clone(&fetcher),
     ));
     let mut message = format!("requesting svn list for '{}'", INITIAL_URL);
     let default_block = Block::default().borders(Borders::ALL);
@@ -121,7 +121,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                                         new_data_request = Some(Request::Forward(base.clone()));
                                         rx = Some(request_new_data(
                                             base.to_string(),
-                                            Arc::clone(&data_generator),
+                                            Arc::clone(&fetcher),
                                         ))
                                     } else {
                                         debug!(
