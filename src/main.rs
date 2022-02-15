@@ -53,6 +53,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
         INITIAL_URL.to_owned(),
         Arc::clone(&data_generator),
     ));
+    let mut message = format!("requesting svn list for '{}'", INITIAL_URL);
     let default_block = Block::default().borders(Borders::ALL);
     loop {
         if poll(Duration::from_millis(200))? {
@@ -72,6 +73,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                                         let mut base = custom_list.base_url.clone();
                                         base.push_str(&selected.name);
                                         base.push('/');
+                                        message = format!("requesting svn list for '{}'", base);
                                         new_data_request = Some(Request::Forward(base.clone()));
                                         rx = Some(request_new_data(
                                             base.to_string(),
@@ -80,6 +82,10 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                                     } else {
                                         debug!(
                                             "file is not listable, so ignore: {}",
+                                            selected.name
+                                        );
+                                        message = format!(
+                                            "'{}' is a file. can't be listed",
                                             selected.name
                                         );
                                     }
@@ -103,6 +109,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             if let Some(rx) = &rx {
                 if let Some(new_data) = get_new_data(rx) {
                     debug!("data received");
+                    message = format!("displaying new svn list from '{}'", base_url);
                     let new_list = CustomList::from((new_data?, base_url.to_owned()));
                     custom_lists.add_new_list(new_list);
                     if let (_, Some(list), _) = custom_lists.get_current() {
@@ -120,8 +127,8 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                 .constraints(
                     [
                         Constraint::Percentage(5),
-                        Constraint::Percentage(90),
-                        Constraint::Percentage(5),
+                        Constraint::Percentage(88),
+                        Constraint::Percentage(7),
                     ]
                     .as_ref(),
                 )
@@ -129,7 +136,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             frame.render_widget(default_block.clone().title("commands"), vertical_chunks[0]);
 
             let text = vec![Spans::from(Span::styled(
-                "test",
+                &message,
                 Style::default().fg(Color::LightMagenta),
             ))];
             frame.render_widget(
@@ -179,7 +186,13 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                             .border_style(Style::default().fg(Color::LightCyan))
                             .border_type(BorderType::Rounded),
                     )
-                    .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+                    .highlight_style(
+                        Style::default()
+                            .add_modifier(Modifier::BOLD)
+                            .fg(Color::LightYellow),
+                    )
+                    //.style(Style::default().bg(Color::Blue))
+                    .style(Style::default().fg(Color::Blue))
                     .highlight_symbol(">>");
                 frame.render_stateful_widget(list, chunks[1], &mut custom_state.state);
             } else {
