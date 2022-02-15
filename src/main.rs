@@ -88,9 +88,9 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     ));
     let mut message = format!("requesting svn list for '{}'", INITIAL_URL);
     let default_block = Block::default().borders(Borders::ALL);
-    let svn_info_spans = Arc::new(Mutex::new(vec![]));
+    let svn_info_list = Arc::new(Mutex::new(vec![]));
     let update_svn_info_str = |entry: &ListEntry| {
-        let mut sis = svn_info_spans.lock().unwrap();
+        let mut sis = svn_info_list.lock().unwrap();
         *sis = vec![
             ListItem::new(format!("url: {}", entry.name)),
             ListItem::new(format!("revision: {}", entry.commit.revision)),
@@ -101,12 +101,12 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     loop {
         if poll(Duration::from_millis(200))? {
             if let Event::Key(KeyEvent { code, .. }) = read()? {
-                svn_info_spans.lock().unwrap().clear();
+                svn_info_list.lock().unwrap().clear();
                 match code {
                     KeyCode::Esc => break,
                     KeyCode::Char('j') | KeyCode::Down => custom_state.inc(),
                     KeyCode::Char('k') | KeyCode::Up => custom_state.dec(),
-                    KeyCode::Char('l') | KeyCode::Right => {
+                    KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => {
                         if new_data_request.is_none() {
                             if let (_, Some(custom_list), _) = custom_lists.get_current() {
                                 if let Some(selected) =
@@ -228,7 +228,7 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
             }
 
             let list = {
-                let locked = svn_info_spans.lock().unwrap();
+                let locked = svn_info_list.lock().unwrap();
                 List::new(locked.clone())
             };
             frame.render_widget(
