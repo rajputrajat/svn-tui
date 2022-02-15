@@ -61,7 +61,7 @@ impl Drop for Terminal_ {
 fn main() -> Result<(), CustomError> {
     env_logger::init();
     let list_cache: Cache = Arc::new(Mutex::new(HashMap::new()));
-    let cb = svn_data_generator(Arc::clone(&list_cache));
+    let cb = svn_helper::list_fetcher(svn_helper::new(), Arc::clone(&list_cache));
     ui(cb)
 }
 
