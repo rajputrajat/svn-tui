@@ -19,7 +19,7 @@ use tui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
-    widgets::{Block, BorderType, Borders, List, Paragraph},
+    widgets::{Block, BorderType, Borders, List, ListItem, Paragraph},
     Terminal,
 };
 
@@ -91,14 +91,12 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
     let svn_info_spans = Arc::new(Mutex::new(vec![]));
     let update_svn_info_str = |entry: &ListEntry| {
         let mut sis = svn_info_spans.lock().unwrap();
-        if sis.is_empty() {
-            *sis = vec![
-                Span::raw(format!("url: {}", entry.name)),
-                Span::raw(format!("revision: {}", entry.commit.revision)),
-                Span::raw(format!("author: {}", entry.commit.author)),
-                Span::raw(format!("date: {}", entry.commit.date)),
-            ];
-        }
+        *sis = vec![
+            ListItem::new(format!("url: {}", entry.name)),
+            ListItem::new(format!("revision: {}", entry.commit.revision)),
+            ListItem::new(format!("author: {}", entry.commit.author)),
+            ListItem::new(format!("date: {}", entry.commit.date)),
+        ];
     };
     loop {
         if poll(Duration::from_millis(200))? {
@@ -229,12 +227,12 @@ fn ui(data_generator: Arc<DataGenerator>) -> Result<(), CustomError> {
                 frame.render_widget(default_block.clone().title(NEXT), chunks[3]);
             }
 
-            let spans = {
+            let list = {
                 let locked = svn_info_spans.lock().unwrap();
-                Spans::from(locked.clone())
+                List::new(locked.clone())
             };
             frame.render_widget(
-                Paragraph::new(vec![spans]).block(
+                list.block(
                     default_block
                         .clone()
                         .title(INFO)
