@@ -272,7 +272,7 @@ fn ui() -> Result<(), CustomError> {
                 list.block(
                     default_block
                         .clone()
-                        .title(PREV)
+                        .title(INFO)
                         .border_style(Style::default().fg(Color::LightCyan))
                         .border_type(BorderType::Thick),
                 ),
