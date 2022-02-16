@@ -12,7 +12,7 @@ use std::{
 use svn_cmd::{Credentials, ListEntry, SvnCmd, SvnError, SvnList};
 use tui::widgets::{ListItem, ListState};
 
-const MAX_VALIDITY_OF_CACHED_LIST: Duration = Duration::from_secs(15 * 60);
+pub(crate) const MAX_VALIDITY_OF_CACHED_LIST: Duration = Duration::from_secs(15 * 60);
 
 pub(crate) type ResultSvnList = Result<SvnList, CustomError>;
 pub(crate) type ListFetcher = dyn Fn(String, Sender<ResultSvnList>) + Sync + Send;
