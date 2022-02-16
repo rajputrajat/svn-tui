@@ -166,16 +166,14 @@ fn ui() -> Result<(), CustomError> {
             let custom_lists = Arc::clone(&custom_lists);
             let custom_state = Arc::clone(&custom_state);
             let message = Arc::clone(&message);
-            let base_url = base_url.clone();
             dh.request(
-                DataRequest::List(TargetUrl(url)),
+                DataRequest::List(TargetUrl(url.clone())),
                 ViewId::MainList,
                 move |res_resp| {
                     debug!("data received");
-                    *message.lock().unwrap() =
-                        format!("displaying new svn list from '{}'", base_url);
+                    *message.lock().unwrap() = format!("displaying new svn list from '{}'", &url);
                     if let Ok(DataResponse::List(svn_list)) = res_resp {
-                        let new_list = CustomList::from((svn_list.clone(), base_url.to_owned()));
+                        let new_list = CustomList::from((svn_list.clone(), url.clone()));
                         custom_lists.lock().unwrap().add_new_list(new_list);
                         if let CustomListsToDisplay {
                             cur: Some(list), ..
@@ -234,10 +232,10 @@ fn ui() -> Result<(), CustomError> {
                 .margin(0)
                 .constraints(
                     [
-                        Constraint::Percentage(15),
-                        Constraint::Percentage(15),
-                        Constraint::Percentage(15),
-                        Constraint::Percentage(55),
+                        Constraint::Percentage(20),
+                        Constraint::Percentage(20),
+                        Constraint::Percentage(20),
+                        Constraint::Percentage(40),
                     ]
                     .as_ref(),
                 )
