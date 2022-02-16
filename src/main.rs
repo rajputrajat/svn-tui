@@ -9,9 +9,8 @@ use crossterm::{
 };
 use log::debug;
 use std::{
-    collections::HashMap,
     io::{self, Stdout},
-    sync::{mpsc::Receiver, Arc, Mutex},
+    sync::{Arc, Mutex},
     time::Duration,
 };
 use svn_cmd::{ListEntry, PathType};
@@ -61,9 +60,7 @@ impl Drop for Terminal_ {
 
 fn main() -> Result<(), CustomError> {
     env_logger::init();
-    let list_cache: Cache = Arc::new(Mutex::new(HashMap::new()));
-    let cb = svn_helper::list_fetcher(svn_helper::new(), Arc::clone(&list_cache));
-    ui(cb)
+    ui()
 }
 
 const INITIAL_URL: &str = "https://svn.ali.global/GDK_games/GDK_games/BLS/";
@@ -73,7 +70,7 @@ const MIDDLE: &str = "SVN list";
 const INFO: &str = "info";
 const MESSAGES: &str = "messages";
 
-fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
+fn ui() -> Result<(), CustomError> {
     let base_url = if let Ok(info_entry) = svn_helper::info(&svn_helper::new()) {
         let mut url = info_entry.entry.url;
         url.push('/');
@@ -92,8 +89,6 @@ fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
         CustomListState::from(custom_list.ok_or_else(|| CustomError::NoDataToList)?)
     }));
     let mut new_data_request: Option<Request> = Some(Request::Forward(base_url.clone()));
-    // let mut rx: Option<Receiver<ResultSvnList>> =
-    //     Some(request_new_data(base_url.clone(), Arc::clone(&fetcher)));
     let message = Arc::new(Mutex::new(format!(
         "requesting svn list for '{}'",
         &base_url
@@ -134,10 +129,6 @@ fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
                                         *message.lock().unwrap() =
                                             format!("requesting svn list for '{}'", base);
                                         new_data_request = Some(Request::Forward(base.clone()));
-                                        // rx = Some(request_new_data(
-                                        //     base.to_string(),
-                                        //     Arc::clone(&fetcher),
-                                        // ))
                                     } else {
                                         debug!(
                                             "file is not listable, so ignore: {}",
