@@ -232,10 +232,10 @@ fn ui() -> Result<(), CustomError> {
                 .margin(0)
                 .constraints(
                     [
+                        Constraint::Percentage(15),
+                        Constraint::Percentage(15),
                         Constraint::Percentage(20),
-                        Constraint::Percentage(20),
-                        Constraint::Percentage(20),
-                        Constraint::Percentage(40),
+                        Constraint::Percentage(50),
                     ]
                     .as_ref(),
                 )
