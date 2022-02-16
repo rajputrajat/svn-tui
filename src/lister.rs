@@ -171,6 +171,12 @@ impl From<Vec<CustomList>> for CustomLists {
     }
 }
 
+pub(crate) struct CustomListsToDisplay {
+    pub(crate) cur: Option<CustomList>,
+    pub(crate) prev: Option<CustomList>,
+    pub(crate) pprev: Option<CustomList>,
+}
+
 impl CustomLists {
     pub(crate) fn add_new_list(&mut self, list: CustomList) {
         self.lists.truncate(self.current + 1);
@@ -178,34 +184,26 @@ impl CustomLists {
         self.current += 1;
     }
 
-    pub(crate) fn go_back(
-        &mut self,
-    ) -> (Option<CustomList>, Option<CustomList>, Option<CustomList>) {
+    pub(crate) fn go_back(&mut self) -> CustomListsToDisplay {
         if self.current > 0 {
             self.current -= 1;
         }
-        (
-            if self.current == 0 {
-                None
-            } else {
-                self.lists.get(self.current - 1).cloned()
-            },
-            self.lists.get(self.current).cloned(),
-            self.lists.get(self.current + 1).cloned(),
-        )
+        self.get_current()
     }
 
-    pub(crate) fn get_current(
-        &mut self,
-    ) -> (Option<CustomList>, Option<CustomList>, Option<CustomList>) {
-        (
-            if self.current == 0 {
+    pub(crate) fn get_current(&self) -> CustomListsToDisplay {
+        CustomListsToDisplay {
+            cur: self.lists.get(self.current).cloned(),
+            prev: if self.current <= 0 {
                 None
             } else {
                 self.lists.get(self.current - 1).cloned()
             },
-            self.lists.get(self.current).cloned(),
-            self.lists.get(self.current + 1).cloned(),
-        )
+            pprev: if self.current <= 1 {
+                None
+            } else {
+                self.lists.get(self.current - 2).cloned()
+            },
+        }
     }
 }

@@ -84,9 +84,9 @@ fn ui() -> Result<(), CustomError> {
     let mut term = Terminal_::create()?;
     let custom_state = Arc::new(Mutex::new({
         let custom_lists = Arc::clone(&custom_lists);
-        let mut locked_lists = custom_lists.lock().unwrap();
-        let (_, custom_list, _) = locked_lists.get_current();
-        CustomListState::from(custom_list.ok_or_else(|| CustomError::NoDataToList)?)
+        let locked_lists = custom_lists.lock().unwrap();
+        let CustomListsToDisplay { cur, .. } = locked_lists.get_current();
+        CustomListState::from(cur.ok_or_else(|| CustomError::NoDataToList)?)
     }));
     let mut new_data_request: Option<Request> = Some(Request::Forward(base_url.clone()));
     let message = Arc::new(Mutex::new(format!(
@@ -115,8 +115,10 @@ fn ui() -> Result<(), CustomError> {
                     KeyCode::Char('k') | KeyCode::Up => custom_state.lock().unwrap().dec(),
                     KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => {
                         if new_data_request.is_none() {
-                            if let (_, Some(custom_list), _) =
-                                custom_lists.lock().unwrap().get_current()
+                            if let CustomListsToDisplay {
+                                cur: Some(custom_list),
+                                ..
+                            } = custom_lists.lock().unwrap().get_current()
                             {
                                 if let Some(selected) =
                                     custom_list.get_current_selected(Arc::clone(&custom_state))
@@ -145,8 +147,10 @@ fn ui() -> Result<(), CustomError> {
                     }
                     KeyCode::Char('h') | KeyCode::Left => {
                         if new_data_request.is_none() {
-                            if let (_, Some(custom_list), _) =
-                                custom_lists.lock().unwrap().go_back()
+                            if let CustomListsToDisplay {
+                                cur: Some(custom_list),
+                                ..
+                            } = custom_lists.lock().unwrap().go_back()
                             {
                                 *custom_state.lock().unwrap() = CustomListState::from(custom_list);
                             }
@@ -173,7 +177,10 @@ fn ui() -> Result<(), CustomError> {
                     if let Ok(DataResponse::List(svn_list)) = res_resp {
                         let new_list = CustomList::from((svn_list.clone(), base_url.to_owned()));
                         custom_lists.lock().unwrap().add_new_list(new_list);
-                        if let (_, Some(list), _) = custom_lists.lock().unwrap().get_current() {
+                        if let CustomListsToDisplay {
+                            cur: Some(list), ..
+                        } = custom_lists.lock().unwrap().get_current()
+                        {
                             *custom_state.lock().unwrap() = CustomListState::from(list);
                         }
                     }
@@ -183,7 +190,11 @@ fn ui() -> Result<(), CustomError> {
             new_data_request = None;
         }
 
-        if let (_, Some(custom_list), _) = custom_lists.lock().unwrap().get_current() {
+        if let CustomListsToDisplay {
+            cur: Some(custom_list),
+            ..
+        } = custom_lists.lock().unwrap().get_current()
+        {
             if let Some(selected) = custom_list.get_current_selected(Arc::clone(&custom_state)) {
                 update_svn_info_str(&selected);
             }
@@ -232,24 +243,24 @@ fn ui() -> Result<(), CustomError> {
                 )
                 .split(vertical_chunks[1]);
 
-            let (prev, curr, next) = {
-                let mut locked_lists = custom_lists.lock().unwrap();
+            let CustomListsToDisplay { cur, prev, pprev } = {
+                let locked_lists = custom_lists.lock().unwrap();
                 locked_lists.get_current()
             };
 
-            if let Some(prev) = prev {
+            if let Some(pprev) = pprev {
                 frame.render_widget(
-                    List::new(prev.get_list_items()).block(default_block.clone().title(PPREV)),
+                    List::new(pprev.get_list_items()).block(default_block.clone().title(PPREV)),
                     chunks[0],
                 );
             } else {
                 frame.render_widget(default_block.clone().title(PPREV), chunks[0]);
             }
 
-            if let Some(next) = next {
+            if let Some(prev) = prev {
                 frame.render_widget(
-                    List::new(next.get_list_items()).block(default_block.clone().title("")),
-                    chunks[3],
+                    List::new(prev.get_list_items()).block(default_block.clone().title("")),
+                    chunks[1],
                 );
             } else {
                 frame.render_widget(default_block.clone().title(""), chunks[3]);
@@ -271,7 +282,7 @@ fn ui() -> Result<(), CustomError> {
             );
             frame.render_widget(default_block.clone().title(PREV), chunks[1]);
 
-            if let Some(curr) = curr {
+            if let Some(curr) = cur {
                 let list = List::new(curr.get_list_items())
                     .block(
                         default_block
