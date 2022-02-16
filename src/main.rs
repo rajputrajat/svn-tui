@@ -66,10 +66,11 @@ fn main() -> Result<(), CustomError> {
 }
 
 const INITIAL_URL: &str = "https://svn.ali.global/GDK_games/GDK_games/BLS/";
-const PREV: &str = " <--- ";
-const NEXT: &str = " ---> ";
+const PREV: &str = " <-- ";
+const PPREV: &str = " <---- ";
 const MIDDLE: &str = "SVN list";
 const INFO: &str = "info";
+const MESSAGES: &str = "messages";
 
 fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
     let base_url = if let Ok(info_entry) = svn_helper::info(&svn_helper::new()) {
@@ -177,23 +178,23 @@ fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
                 .margin(0)
                 .constraints(
                     [
-                        Constraint::Percentage(5),
-                        Constraint::Percentage(88),
                         Constraint::Percentage(7),
+                        Constraint::Percentage(83),
+                        Constraint::Percentage(10),
                     ]
                     .as_ref(),
                 )
                 .split(frame.size());
-            frame.render_widget(default_block.clone().title("commands"), vertical_chunks[0]);
 
             let text = vec![Spans::from(Span::styled(
                 &message,
                 Style::default().fg(Color::LightMagenta),
             ))];
             frame.render_widget(
-                Paragraph::new(text).block(default_block.clone().title("messages")),
-                vertical_chunks[2],
+                Paragraph::new(text).block(default_block.clone().title(MESSAGES)),
+                vertical_chunks[0],
             );
+            // frame.render_widget(default_block.clone().title(INFO), vertical_chunks[2]);
 
             let chunks = Layout::default()
                 .direction(Direction::Horizontal)
@@ -213,20 +214,20 @@ fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
 
             if let Some(prev) = prev {
                 frame.render_widget(
-                    List::new(prev.get_list_items()).block(default_block.clone().title(PREV)),
+                    List::new(prev.get_list_items()).block(default_block.clone().title(PPREV)),
                     chunks[0],
                 );
             } else {
-                frame.render_widget(default_block.clone().title(PREV), chunks[0]);
+                frame.render_widget(default_block.clone().title(PPREV), chunks[0]);
             }
 
             if let Some(next) = next {
                 frame.render_widget(
-                    List::new(next.get_list_items()).block(default_block.clone().title(NEXT)),
+                    List::new(next.get_list_items()).block(default_block.clone().title("")),
                     chunks[3],
                 );
             } else {
-                frame.render_widget(default_block.clone().title(NEXT), chunks[3]);
+                frame.render_widget(default_block.clone().title(""), chunks[3]);
             }
 
             let list = {
@@ -237,12 +238,13 @@ fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
                 list.block(
                     default_block
                         .clone()
-                        .title(INFO)
+                        .title(PREV)
                         .border_style(Style::default().fg(Color::LightCyan))
                         .border_type(BorderType::Thick),
                 ),
-                chunks[2],
+                vertical_chunks[2],
             );
+            frame.render_widget(default_block.clone().title(PREV), chunks[1]);
 
             if let Some(curr) = curr {
                 let list = List::new(curr.get_list_items())
@@ -260,9 +262,9 @@ fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
                     )
                     .style(Style::default().fg(Color::Blue))
                     .highlight_symbol(">>");
-                frame.render_stateful_widget(list, chunks[1], &mut custom_state.state);
+                frame.render_stateful_widget(list, chunks[2], &mut custom_state.state);
             } else {
-                frame.render_widget(default_block.clone().title(MIDDLE), chunks[1]);
+                frame.render_widget(default_block.clone().title(MIDDLE), chunks[2]);
             }
         })?;
     }
