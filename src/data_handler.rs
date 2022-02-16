@@ -61,18 +61,18 @@ pub(crate) enum ViewId {
 }
 
 type ResultSvnList = Result<SvnList, SvnError>;
-type ResultDataResponse = Result<DataResponse, CustomError>;
-type ResponseCb = dyn Fn(Result<DataResponse, CustomError>) + Send;
+pub(crate) type ResultDataResponse = Result<DataResponse, CustomError>;
+type ResponseCb = dyn FnMut(Result<DataResponse, CustomError>) + Send;
 
 impl DataHandler {
     pub(crate) fn request<F>(self: Arc<Self>, req: DataRequest, view_id: ViewId, f: F)
     where
-        F: Fn(ResultDataResponse) + Send + 'static,
+        F: FnMut(ResultDataResponse) + Send + 'static,
     {
         let thread_ids = Arc::clone(&self.thread_ids);
-        let id = self.create_fetcher(req, move |svnlist_result, thread_id| {
-            let locked = thread_ids.lock().unwrap();
-            let (cur_id, cb) = locked.get(&view_id).unwrap();
+        let id = Arc::clone(&self).create_fetcher(req, move |svnlist_result, thread_id| {
+            let mut locked = thread_ids.lock().unwrap();
+            let (cur_id, cb) = locked.get_mut(&view_id).unwrap();
             if cur_id == &thread_id {
                 (cb)(svnlist_result);
             }
@@ -83,9 +83,9 @@ impl DataHandler {
             .insert(view_id, (id, Box::new(f)));
     }
 
-    fn create_fetcher<F>(self: Arc<Self>, req: DataRequest, cb: F) -> ThreadId
+    fn create_fetcher<F>(self: Arc<Self>, req: DataRequest, mut cb: F) -> ThreadId
     where
-        F: Fn(ResultDataResponse, ThreadId) + Send + 'static,
+        F: FnMut(ResultDataResponse, ThreadId) + Send + 'static,
     {
         let join_h = thread::spawn(move || {
             let res_resp = self.get_cached(req);

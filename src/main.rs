@@ -155,11 +155,14 @@ fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
         }
 
         {
+            let mut res_response: Option<ResultDataResponse> = None;
             let dh = Arc::clone(&data_handler);
             dh.request(
                 DataRequest::List(TargetUrl(base_url.clone())),
                 ViewId::MainList,
-                |res_resp| {},
+                move |res_resp| {
+                    res_response = Some(res_resp);
+                },
             );
         }
 
