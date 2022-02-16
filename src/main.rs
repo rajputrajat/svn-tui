@@ -200,10 +200,10 @@ fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
                 .margin(0)
                 .constraints(
                     [
-                        Constraint::Percentage(25),
-                        Constraint::Percentage(25),
-                        Constraint::Percentage(25),
-                        Constraint::Percentage(25),
+                        Constraint::Percentage(15),
+                        Constraint::Percentage(15),
+                        Constraint::Percentage(15),
+                        Constraint::Percentage(55),
                     ]
                     .as_ref(),
                 )
