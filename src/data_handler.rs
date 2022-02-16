@@ -1,12 +1,13 @@
 use crate::{lister::svn_helper, CustomError};
 use std::{
     collections::HashMap,
+    sync::{Arc, Mutex},
     thread::{self, ThreadId},
 };
 use svn_cmd::{SvnError, SvnInfo, SvnList, SvnLog};
 
 pub(crate) struct DataHandler {
-    thread_ids: HashMap<ViewId, ThreadId>,
+    thread_ids: Arc<Mutex<HashMap<ViewId, (ThreadId, Box<ResponseCb>)>>>,
 }
 
 pub(crate) struct TargetUrl(pub(crate) String);
@@ -25,7 +26,7 @@ pub(crate) enum DataResponse {
     Text(String),
 }
 
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Eq, PartialEq, Hash, Clone, Copy)]
 pub(crate) enum ViewId {
     MainList,
     BottomInfo,
@@ -33,22 +34,36 @@ pub(crate) enum ViewId {
 }
 
 type ResultSvnList = Result<SvnList, SvnError>;
+type ResponseCb = dyn Fn(Result<DataResponse, CustomError>) + Send;
 
 impl DataHandler {
     pub(crate) fn new() -> Self {
         Self {
-            thread_ids: HashMap::new(),
+            thread_ids: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
-    pub(crate) fn request<F>(&mut self, req: DataRequest, view_id: ViewId, f: F)
+    pub(crate) fn request<F>(&'static mut self, req: DataRequest, view_id: ViewId, f: F)
     where
-        F: Fn(DataResponse) -> Result<(), CustomError>,
+        F: Fn(Result<DataResponse, CustomError>) + Send + 'static,
     {
         match req {
             DataRequest::List(target) => {
-                let id = self.create_list_fetcher(target, |svnlist_result, thread_id| {});
-                self.thread_ids.insert(view_id, id);
+                let thread_ids = Arc::clone(&self.thread_ids);
+                let id = self.create_list_fetcher(target, move |svnlist_result, thread_id| {
+                    let locked = thread_ids.lock().unwrap();
+                    let (cur_id, cb) = locked.get(&view_id).unwrap();
+                    if cur_id == &thread_id {
+                        (cb)(svnlist_result.map_or_else(
+                            |e| Err(CustomError::Svn(e)),
+                            |v| Ok(DataResponse::List(v)),
+                        ));
+                    }
+                });
+                self.thread_ids
+                    .lock()
+                    .unwrap()
+                    .insert(view_id, (id, Box::new(f)));
             }
             _ => {}
         }
