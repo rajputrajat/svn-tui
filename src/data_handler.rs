@@ -65,7 +65,7 @@ type ResultDataResponse = Result<DataResponse, CustomError>;
 type ResponseCb = dyn Fn(Result<DataResponse, CustomError>) + Send;
 
 impl DataHandler {
-    pub(crate) fn request<F>(&'static mut self, req: DataRequest, view_id: ViewId, f: F)
+    pub(crate) fn request<F>(self: Arc<Self>, req: DataRequest, view_id: ViewId, f: F)
     where
         F: Fn(ResultDataResponse) + Send + 'static,
     {
@@ -83,7 +83,7 @@ impl DataHandler {
             .insert(view_id, (id, Box::new(f)));
     }
 
-    fn create_fetcher<F>(&'static self, req: DataRequest, cb: F) -> ThreadId
+    fn create_fetcher<F>(self: Arc<Self>, req: DataRequest, cb: F) -> ThreadId
     where
         F: Fn(ResultDataResponse, ThreadId) + Send + 'static,
     {
@@ -94,7 +94,7 @@ impl DataHandler {
         join_h.thread().id()
     }
 
-    fn get_cached(&self, req: DataRequest) -> ResultDataResponse {
+    fn get_cached(self: Arc<Self>, req: DataRequest) -> ResultDataResponse {
         let mut ret: Option<_> = None;
         {
             let locked = self.cache.lock().unwrap();
