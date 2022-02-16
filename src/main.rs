@@ -157,15 +157,14 @@ fn ui() -> Result<(), CustomError> {
             }
         }
 
-        if new_data_request.is_some() {
-            new_data_request = None;
+        if let Some(Request::Forward(url)) = new_data_request {
             let dh = Arc::clone(&data_handler);
             let custom_lists = Arc::clone(&custom_lists);
             let custom_state = Arc::clone(&custom_state);
             let message = Arc::clone(&message);
             let base_url = base_url.clone();
             dh.request(
-                DataRequest::List(TargetUrl(base_url.clone())),
+                DataRequest::List(TargetUrl(url)),
                 ViewId::MainList,
                 move |res_resp| {
                     debug!("data received");
@@ -181,6 +180,7 @@ fn ui() -> Result<(), CustomError> {
                 },
             );
             debug!("out here");
+            new_data_request = None;
         }
 
         if let (_, Some(custom_list), _) = custom_lists.lock().unwrap().get_current() {
