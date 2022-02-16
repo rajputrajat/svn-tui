@@ -67,38 +67,29 @@ type ResponseCb = dyn Fn(Result<DataResponse, CustomError>) + Send;
 impl DataHandler {
     pub(crate) fn request<F>(&'static mut self, req: DataRequest, view_id: ViewId, f: F)
     where
-        F: Fn(Result<DataResponse, CustomError>) + Send + 'static,
+        F: Fn(ResultDataResponse) + Send + 'static,
     {
-        match req {
-            DataRequest::List(target) => {
-                let thread_ids = Arc::clone(&self.thread_ids);
-                let id = self.create_list_fetcher(target, move |svnlist_result, thread_id| {
-                    let locked = thread_ids.lock().unwrap();
-                    let (cur_id, cb) = locked.get(&view_id).unwrap();
-                    if cur_id == &thread_id {
-                        (cb)(svnlist_result.map_or_else(
-                            |e| Err(CustomError::Svn(e)),
-                            |v| Ok(DataResponse::List(v)),
-                        ));
-                    }
-                });
-                self.thread_ids
-                    .lock()
-                    .unwrap()
-                    .insert(view_id, (id, Box::new(f)));
+        let thread_ids = Arc::clone(&self.thread_ids);
+        let id = self.create_fetcher(req, move |svnlist_result, thread_id| {
+            let locked = thread_ids.lock().unwrap();
+            let (cur_id, cb) = locked.get(&view_id).unwrap();
+            if cur_id == &thread_id {
+                (cb)(svnlist_result);
             }
-            _ => {}
-        }
+        });
+        self.thread_ids
+            .lock()
+            .unwrap()
+            .insert(view_id, (id, Box::new(f)));
     }
 
-    fn create_list_fetcher<F>(&self, target: TargetUrl, cb: F) -> ThreadId
+    fn create_fetcher<F>(&self, req: DataRequest, cb: F) -> ThreadId
     where
-        F: Fn(ResultSvnList, ThreadId) + Send + 'static,
+        F: Fn(ResultDataResponse, ThreadId) + Send + 'static,
     {
         let join_h = thread::spawn(move || {
-            let cmd = svn_helper::new();
-            let list = cmd.list(&target.0, false);
-            (cb)(list, thread::current().id())
+            let res_resp = self.get_cached(req);
+            (cb)(res_resp, thread::current().id());
         });
         join_h.thread().id()
     }
