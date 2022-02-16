@@ -83,7 +83,7 @@ impl DataHandler {
             .insert(view_id, (id, Box::new(f)));
     }
 
-    fn create_fetcher<F>(&self, req: DataRequest, cb: F) -> ThreadId
+    fn create_fetcher<F>(&'static self, req: DataRequest, cb: F) -> ThreadId
     where
         F: Fn(ResultDataResponse, ThreadId) + Send + 'static,
     {
