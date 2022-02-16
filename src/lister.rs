@@ -20,7 +20,7 @@ pub(crate) type ListFetcher = dyn Fn(String, Sender<ResultSvnList>) + Sync + Sen
 pub(crate) trait ListOps {
     fn len(&self) -> usize;
     fn get_list_items(&self) -> Vec<ListItem>;
-    fn get_current_selected(&self, state: &impl ListStateOps) -> Option<ListEntry>;
+    fn get_current_selected(&self, state: Arc<Mutex<CustomListState>>) -> Option<ListEntry>;
 }
 
 pub(crate) trait ListStateOps {
@@ -93,7 +93,7 @@ pub(crate) fn get_new_data(rx: &Receiver<ResultSvnList>) -> Option<ResultSvnList
     rx.try_recv().ok()
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub(crate) struct CustomList {
     items: SvnList,
     pub(crate) base_url: String,
@@ -143,8 +143,8 @@ impl ListOps for CustomList {
             .collect()
     }
 
-    fn get_current_selected(&self, state: &impl ListStateOps) -> Option<ListEntry> {
-        if let Some(selected) = state.get() {
+    fn get_current_selected(&self, state: Arc<Mutex<CustomListState>>) -> Option<ListEntry> {
+        if let Some(selected) = state.lock().unwrap().get() {
             if let Some(item) = self.items.iter().nth(selected) {
                 return Some(item.clone());
             }
@@ -153,8 +153,8 @@ impl ListOps for CustomList {
     }
 }
 
-impl From<&CustomList> for CustomListState {
-    fn from(list: &CustomList) -> Self {
+impl From<CustomList> for CustomListState {
+    fn from(list: CustomList) -> Self {
         let mut state = ListState::default();
         let list_size = list.len();
         if list.len() > 0 {
@@ -233,11 +233,7 @@ impl CustomLists {
 
     pub(crate) fn go_back(
         &mut self,
-    ) -> (
-        Option<&CustomList>,
-        Option<&CustomList>,
-        Option<&CustomList>,
-    ) {
+    ) -> (Option<CustomList>, Option<CustomList>, Option<CustomList>) {
         if self.current > 0 {
             self.current -= 1;
         }
@@ -245,28 +241,24 @@ impl CustomLists {
             if self.current == 0 {
                 None
             } else {
-                self.lists.get(self.current - 1)
+                self.lists.get(self.current - 1).cloned()
             },
-            self.lists.get(self.current),
-            self.lists.get(self.current + 1),
+            self.lists.get(self.current).cloned(),
+            self.lists.get(self.current + 1).cloned(),
         )
     }
 
     pub(crate) fn get_current(
         &mut self,
-    ) -> (
-        Option<&CustomList>,
-        Option<&CustomList>,
-        Option<&CustomList>,
-    ) {
+    ) -> (Option<CustomList>, Option<CustomList>, Option<CustomList>) {
         (
             if self.current == 0 {
                 None
             } else {
-                self.lists.get(self.current - 1)
+                self.lists.get(self.current - 1).cloned()
             },
-            self.lists.get(self.current),
-            self.lists.get(self.current + 1),
+            self.lists.get(self.current).cloned(),
+            self.lists.get(self.current + 1).cloned(),
         )
     }
 }

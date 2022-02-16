@@ -81,16 +81,23 @@ fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
     } else {
         INITIAL_URL.to_owned()
     };
-    let mut custom_lists = CustomLists::from(vec![CustomList::from(base_url.clone())]);
+    let custom_lists = Arc::new(Mutex::new(CustomLists::from(vec![CustomList::from(
+        base_url.clone(),
+    )])));
     let mut term = Terminal_::create()?;
-    let mut custom_state = {
-        let (_, custom_list, _) = custom_lists.get_current();
+    let custom_state = Arc::new(Mutex::new({
+        let custom_lists = Arc::clone(&custom_lists);
+        let mut locked_lists = custom_lists.lock().unwrap();
+        let (_, custom_list, _) = locked_lists.get_current();
         CustomListState::from(custom_list.ok_or_else(|| CustomError::NoDataToList)?)
-    };
+    }));
     let mut new_data_request: Option<Request> = Some(Request::Forward(base_url.clone()));
-    let mut rx: Option<Receiver<ResultSvnList>> =
-        Some(request_new_data(base_url.clone(), Arc::clone(&fetcher)));
-    let mut message = format!("requesting svn list for '{}'", &base_url);
+    // let mut rx: Option<Receiver<ResultSvnList>> =
+    //     Some(request_new_data(base_url.clone(), Arc::clone(&fetcher)));
+    let message = Arc::new(Mutex::new(format!(
+        "requesting svn list for '{}'",
+        &base_url
+    )));
     let default_block = Block::default().borders(Borders::ALL);
     let svn_info_list = Arc::new(Mutex::new(vec![]));
     let update_svn_info_str = |entry: &ListEntry| {
@@ -109,31 +116,34 @@ fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
                 svn_info_list.lock().unwrap().clear();
                 match code {
                     KeyCode::Esc => break,
-                    KeyCode::Char('j') | KeyCode::Down => custom_state.inc(),
-                    KeyCode::Char('k') | KeyCode::Up => custom_state.dec(),
+                    KeyCode::Char('j') | KeyCode::Down => custom_state.lock().unwrap().inc(),
+                    KeyCode::Char('k') | KeyCode::Up => custom_state.lock().unwrap().dec(),
                     KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => {
                         if new_data_request.is_none() {
-                            if let (_, Some(custom_list), _) = custom_lists.get_current() {
+                            if let (_, Some(custom_list), _) =
+                                custom_lists.lock().unwrap().get_current()
+                            {
                                 if let Some(selected) =
-                                    custom_list.get_current_selected(&custom_state)
+                                    custom_list.get_current_selected(Arc::clone(&custom_state))
                                 {
                                     if selected.kind == PathType::Dir {
                                         debug!("requesting new data");
                                         let mut base = custom_list.base_url.clone();
                                         base.push_str(&selected.name);
                                         base.push('/');
-                                        message = format!("requesting svn list for '{}'", base);
+                                        *message.lock().unwrap() =
+                                            format!("requesting svn list for '{}'", base);
                                         new_data_request = Some(Request::Forward(base.clone()));
-                                        rx = Some(request_new_data(
-                                            base.to_string(),
-                                            Arc::clone(&fetcher),
-                                        ))
+                                        // rx = Some(request_new_data(
+                                        //     base.to_string(),
+                                        //     Arc::clone(&fetcher),
+                                        // ))
                                     } else {
                                         debug!(
                                             "file is not listable, so ignore: {}",
                                             selected.name
                                         );
-                                        message = format!(
+                                        *message.lock().unwrap() = format!(
                                             "'{}' is a file. can't be listed",
                                             selected.name
                                         );
@@ -144,8 +154,10 @@ fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
                     }
                     KeyCode::Char('h') | KeyCode::Left => {
                         if new_data_request.is_none() {
-                            if let (_, Some(custom_list), _) = custom_lists.go_back() {
-                                custom_state = CustomListState::from(custom_list);
+                            if let (_, Some(custom_list), _) =
+                                custom_lists.lock().unwrap().go_back()
+                            {
+                                *custom_state.lock().unwrap() = CustomListState::from(custom_list);
                             }
                         }
                     }
@@ -156,32 +168,32 @@ fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
 
         if new_data_request.is_some() {
             new_data_request = None;
-            let res_response: Arc<Mutex<Option<ResultDataResponse>>> = Arc::new(Mutex::new(None));
             let dh = Arc::clone(&data_handler);
-            let res_resp_clone = Arc::clone(&res_response);
+            let custom_lists = Arc::clone(&custom_lists);
+            let custom_state = Arc::clone(&custom_state);
+            let message = Arc::clone(&message);
+            let base_url = base_url.clone();
             dh.request(
                 DataRequest::List(TargetUrl(base_url.clone())),
                 ViewId::MainList,
                 move |res_resp| {
-                    *res_resp_clone.lock().unwrap() = Some(res_resp);
+                    debug!("data received");
+                    *message.lock().unwrap() =
+                        format!("displaying new svn list from '{}'", base_url);
+                    if let Ok(DataResponse::List(svn_list)) = res_resp {
+                        let new_list = CustomList::from((svn_list.clone(), base_url.to_owned()));
+                        custom_lists.lock().unwrap().add_new_list(new_list);
+                        if let (_, Some(list), _) = custom_lists.lock().unwrap().get_current() {
+                            *custom_state.lock().unwrap() = CustomListState::from(list);
+                        }
+                    }
                 },
             );
-            let lock = res_response.lock().unwrap();
-            if let Some(resp) = &*lock {
-                debug!("data received");
-                message = format!("displaying new svn list from '{}'", base_url);
-                if let Ok(DataResponse::List(svn_list)) = resp {
-                    let new_list = CustomList::from((svn_list.clone(), base_url.to_owned()));
-                    custom_lists.add_new_list(new_list);
-                    if let (_, Some(list), _) = custom_lists.get_current() {
-                        custom_state = CustomListState::from(list);
-                    }
-                }
-            }
+            debug!("out here");
         }
 
-        if let (_, Some(custom_list), _) = custom_lists.get_current() {
-            if let Some(selected) = custom_list.get_current_selected(&custom_state) {
+        if let (_, Some(custom_list), _) = custom_lists.lock().unwrap().get_current() {
+            if let Some(selected) = custom_list.get_current_selected(Arc::clone(&custom_state)) {
                 update_svn_info_str(&selected);
             }
         }
@@ -200,15 +212,20 @@ fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
                 )
                 .split(frame.size());
 
-            let text = vec![Spans::from(Span::styled(
-                &message,
-                Style::default().fg(Color::LightMagenta),
-            ))];
+            let text_str = {
+                let locked_msg = message.lock().unwrap();
+                locked_msg.to_string()
+            };
+            let text = {
+                vec![Spans::from(Span::styled(
+                    &text_str,
+                    Style::default().fg(Color::LightMagenta),
+                ))]
+            };
             frame.render_widget(
                 Paragraph::new(text).block(default_block.clone().title(MESSAGES)),
                 vertical_chunks[0],
             );
-            // frame.render_widget(default_block.clone().title(INFO), vertical_chunks[2]);
 
             let chunks = Layout::default()
                 .direction(Direction::Horizontal)
@@ -224,7 +241,10 @@ fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
                 )
                 .split(vertical_chunks[1]);
 
-            let (prev, curr, next) = custom_lists.get_current();
+            let (prev, curr, next) = {
+                let mut locked_lists = custom_lists.lock().unwrap();
+                locked_lists.get_current()
+            };
 
             if let Some(prev) = prev {
                 frame.render_widget(
@@ -276,7 +296,11 @@ fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
                     )
                     .style(Style::default().fg(Color::Blue))
                     .highlight_symbol(">>");
-                frame.render_stateful_widget(list, chunks[2], &mut custom_state.state);
+                frame.render_stateful_widget(
+                    list,
+                    chunks[2],
+                    &mut custom_state.lock().unwrap().state,
+                );
             } else {
                 frame.render_widget(default_block.clone().title(MIDDLE), chunks[2]);
             }

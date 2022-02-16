@@ -1,4 +1,5 @@
 use crate::{lister::svn_helper, CustomError, MAX_VALIDITY_OF_CACHED_LIST};
+use log::debug;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -89,23 +90,34 @@ impl DataHandler {
     {
         let join_h = thread::spawn(move || {
             let res_resp = self.get_cached(req);
-            (cb)(res_resp, thread::current().id());
+            let cur_id = thread::current().id();
+            debug!("current thread id: {cur_id:?}");
+            (cb)(res_resp, cur_id);
         });
-        join_h.thread().id()
+        let id = join_h.thread().id();
+        debug!("thread id: {id:?}");
+        id
     }
 
     fn get_cached(self: Arc<Self>, req: DataRequest) -> ResultDataResponse {
-        let locked = self.cache.lock().unwrap();
-        if let Some((resp, sys_time)) = locked.get(&req) {
-            if SystemTime::now().duration_since(*sys_time)? < MAX_VALIDITY_OF_CACHED_LIST {
-                return Ok(resp.clone());
-            }
-        };
+        {
+            let locked = self.cache.lock().unwrap();
+            if let Some((resp, sys_time)) = locked.get(&req) {
+                if SystemTime::now().duration_since(*sys_time)? < MAX_VALIDITY_OF_CACHED_LIST {
+                    return Ok(resp.clone());
+                }
+            };
+        }
         let cmd = svn_helper::new();
         let int_ret: ResultDataResponse = match &req {
-            DataRequest::List(TargetUrl(url)) => cmd
-                .list(url, false)
-                .map_or_else(|e| Err(e.into()), |v| Ok(v.into())),
+            DataRequest::List(TargetUrl(url)) => {
+                debug!("list requested for {url}");
+                let list = cmd
+                    .list(url, false)
+                    .map_or_else(|e| Err(e.into()), |v| Ok(v.into()));
+                debug!("got list");
+                list
+            }
             DataRequest::Log(TargetUrl(url)) => cmd
                 .log(url)
                 .map_or_else(|e| Err(e.into()), |v| Ok(v.into())),
