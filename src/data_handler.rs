@@ -95,36 +95,31 @@ impl DataHandler {
     }
 
     fn get_cached(self: Arc<Self>, req: DataRequest) -> ResultDataResponse {
-        let mut ret: Option<_> = None;
-        {
-            let locked = self.cache.lock().unwrap();
-            if let Some((resp, sys_time)) = locked.get(&req) {
-                if SystemTime::now().duration_since(*sys_time)? < MAX_VALIDITY_OF_CACHED_LIST {
-                    ret = Some(Ok(resp.clone()));
-                }
-            };
-        }
-        if ret.is_none() {
-            let cmd = svn_helper::new();
-            let int_ret: ResultDataResponse = match &req {
-                DataRequest::List(TargetUrl(url)) => cmd
-                    .list(url, false)
-                    .map_or_else(|e| Err(e.into()), |v| Ok(v.into())),
-                DataRequest::Log(TargetUrl(url)) => cmd
-                    .log(url)
-                    .map_or_else(|e| Err(e.into()), |v| Ok(v.into())),
-                DataRequest::Info(TargetUrl(url)) => cmd
-                    .info(url)
-                    .map_or_else(|e| Err(e.into()), |v| Ok(v.into())),
-                DataRequest::Text(TargetUrl(url)) => cmd
-                    .cat(url)
-                    .map_or_else(|e| Err(e.into()), |v| Ok(v.into())),
-            };
-            if let Ok(resp) = &int_ret {
-                let mut locked = self.cache.lock().unwrap();
-                locked.insert(req, (resp.clone(), SystemTime::now()));
+        let locked = self.cache.lock().unwrap();
+        if let Some((resp, sys_time)) = locked.get(&req) {
+            if SystemTime::now().duration_since(*sys_time)? < MAX_VALIDITY_OF_CACHED_LIST {
+                return Ok(resp.clone());
             }
+        };
+        let cmd = svn_helper::new();
+        let int_ret: ResultDataResponse = match &req {
+            DataRequest::List(TargetUrl(url)) => cmd
+                .list(url, false)
+                .map_or_else(|e| Err(e.into()), |v| Ok(v.into())),
+            DataRequest::Log(TargetUrl(url)) => cmd
+                .log(url)
+                .map_or_else(|e| Err(e.into()), |v| Ok(v.into())),
+            DataRequest::Info(TargetUrl(url)) => cmd
+                .info(url)
+                .map_or_else(|e| Err(e.into()), |v| Ok(v.into())),
+            DataRequest::Text(TargetUrl(url)) => cmd
+                .cat(url)
+                .map_or_else(|e| Err(e.into()), |v| Ok(v.into())),
+        };
+        if let Ok(resp) = &int_ret {
+            let mut locked = self.cache.lock().unwrap();
+            locked.insert(req, (resp.clone(), SystemTime::now()));
         }
-        ret.unwrap()
+        return int_ret;
     }
 }

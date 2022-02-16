@@ -154,32 +154,32 @@ fn ui(fetcher: Arc<ListFetcher>) -> Result<(), CustomError> {
             }
         }
 
-        {
-            let mut res_response: Option<ResultDataResponse> = None;
+        if new_data_request.is_some() {
+            new_data_request = None;
+            let res_response: Arc<Mutex<Option<ResultDataResponse>>> = Arc::new(Mutex::new(None));
             let dh = Arc::clone(&data_handler);
+            let res_resp_clone = Arc::clone(&res_response);
             dh.request(
                 DataRequest::List(TargetUrl(base_url.clone())),
                 ViewId::MainList,
                 move |res_resp| {
-                    res_response = Some(res_resp);
+                    *res_resp_clone.lock().unwrap() = Some(res_resp);
                 },
             );
+            let lock = res_response.lock().unwrap();
+            if let Some(resp) = &*lock {
+                debug!("data received");
+                message = format!("displaying new svn list from '{}'", base_url);
+                if let Ok(DataResponse::List(svn_list)) = resp {
+                    let new_list = CustomList::from((svn_list.clone(), base_url.to_owned()));
+                    custom_lists.add_new_list(new_list);
+                    if let (_, Some(list), _) = custom_lists.get_current() {
+                        custom_state = CustomListState::from(list);
+                    }
+                }
+            }
         }
 
-        // if let Some(Request::Forward(base_url)) = &new_data_request {
-        //     if let Some(rx) = &rx {
-        //         if let Some(new_data) = get_new_data(rx) {
-        //             debug!("data received");
-        //             message = format!("displaying new svn list from '{}'", base_url);
-        //             let new_list = CustomList::from((new_data?, base_url.to_owned()));
-        //             custom_lists.add_new_list(new_list);
-        //             if let (_, Some(list), _) = custom_lists.get_current() {
-        //                 custom_state = CustomListState::from(list);
-        //             }
-        //             new_data_request = None;
-        //         }
-        //     }
-        // }
         if let (_, Some(custom_list), _) = custom_lists.get_current() {
             if let Some(selected) = custom_list.get_current_selected(&custom_state) {
                 update_svn_info_str(&selected);
