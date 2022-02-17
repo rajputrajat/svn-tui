@@ -134,8 +134,10 @@ fn ui() -> Result<(), CustomError> {
         let CustomListsToDisplay { cur, .. } = locked_lists.get_current();
         CustomListState::from(cur.ok_or_else(|| CustomError::NoDataToList)?)
     }));
-    let mut new_data_request: Option<DataRequest> =
-        Some(DataRequest::List(TargetUrl(base_url.clone())));
+    let mut new_data_request: Option<(DataRequest, ViewId)> = Some((
+        DataRequest::List(TargetUrl(base_url.clone())),
+        ViewId::MainList,
+    ));
     let message = Arc::new(Mutex::new(format!("requesting svn list for '{base_url}'")));
     let default_block = Block::default().borders(Borders::ALL);
     let svn_info_list = Arc::new(Mutex::new(vec![]));
@@ -186,8 +188,10 @@ fn ui() -> Result<(), CustomError> {
                                         debug!("requesting new data");
                                         *message.lock().unwrap() =
                                             format!("requesting svn list for '{base}'");
-                                        new_data_request =
-                                            Some(DataRequest::List(TargetUrl(base.clone())));
+                                        new_data_request = Some((
+                                            DataRequest::List(TargetUrl(base.clone())),
+                                            ViewId::MainList,
+                                        ));
                                     } else {
                                         let name = selected.name;
                                         if HUGE_FILES_SUFFIX.iter().any(|s| name.contains(s)) {
@@ -198,8 +202,10 @@ fn ui() -> Result<(), CustomError> {
                                             debug!("viewing '{name}'");
                                             *message.lock().unwrap() =
                                                 format!("opening file: '{name}'");
-                                            new_data_request =
-                                                Some(DataRequest::Text(TargetUrl(base)));
+                                            new_data_request = Some((
+                                                DataRequest::Text(TargetUrl(base)),
+                                                ViewId::RightInfoPane,
+                                            ));
                                         }
                                     }
                                 }
@@ -222,7 +228,7 @@ fn ui() -> Result<(), CustomError> {
             }
         }
 
-        if let Some(req) = new_data_request {
+        if let Some((req, view_id)) = new_data_request {
             let dh = Arc::clone(&data_handler);
             let custom_lists = Arc::clone(&custom_lists);
             let custom_state = Arc::clone(&custom_state);
@@ -230,7 +236,7 @@ fn ui() -> Result<(), CustomError> {
             let err_tx = error_tx.clone();
             let text_view = Arc::clone(&text_view);
             let scroller = Arc::clone(&text_view_scroller);
-            dh.request(req.clone(), ViewId::MainList, move |res_resp| {
+            dh.request(req.clone(), view_id, move |res_resp| {
                 debug!("data received");
                 match res_resp {
                     Ok(v) => match v {
@@ -250,7 +256,7 @@ fn ui() -> Result<(), CustomError> {
                             }
                         }
                         DataResponse::Log(log) => {}
-                        DataResponse::Info(i) => {}
+                        DataResponse::Info(_info) => {}
                         DataResponse::Text(t) => {
                             let mut text = Vec::<Spans>::new();
                             for line in t.lines() {

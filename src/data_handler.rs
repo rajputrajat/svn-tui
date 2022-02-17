@@ -75,10 +75,10 @@ impl From<String> for DataResponse {
 pub(crate) enum ViewId {
     MainList,
     BottomInfo,
+    BottomLog,
     RightInfoPane,
 }
 
-type ResultSvnList = Result<SvnList, SvnError>;
 pub(crate) type ResultDataResponse = Result<DataResponse, CustomError>;
 type ResponseCb = dyn FnMut(ResultDataResponse) + Send;
 
