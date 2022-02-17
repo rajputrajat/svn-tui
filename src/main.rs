@@ -326,6 +326,12 @@ fn ui() -> Result<(), CustomError> {
                 )
                 .split(vertical_chunks[1]);
 
+            let lower_hchunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .margin(0)
+                .constraints([Constraint::Percentage(30), Constraint::Percentage(70)].as_ref())
+                .split(vertical_chunks[2]);
+
             let CustomListsToDisplay { cur, prev, pprev } = {
                 let locked_lists = custom_lists.lock().unwrap();
                 locked_lists.get_current()
@@ -361,9 +367,15 @@ fn ui() -> Result<(), CustomError> {
                         .border_style(Style::default().fg(Color::LightCyan))
                         .border_type(BorderType::Thick),
                 ),
-                vertical_chunks[2],
+                lower_hchunks[0],
             );
             frame.render_widget(default_block.clone().title(PREV), chunks[1]);
+            frame.render_widget(
+                default_block
+                    .clone()
+                    .title("commit message : [scroll-up: '9'], [scroll-down: '0']"),
+                lower_hchunks[1],
+            );
 
             if let Some(curr) = cur {
                 let list = List::new(curr.get_list_items())
