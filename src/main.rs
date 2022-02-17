@@ -23,6 +23,10 @@ use tui::{
     Terminal,
 };
 
+const HUGE_FILES_SUFFIX: [&str; 9] = [
+    ".db", ".bin", ".mercury", ".o", ".obj", ".dll", ".so", ".a", ".exe",
+];
+
 struct Terminal_ {
     term: Terminal<CrosstermBackend<Stdout>>,
 }
@@ -186,10 +190,17 @@ fn ui() -> Result<(), CustomError> {
                                             Some(DataRequest::List(TargetUrl(base.clone())));
                                     } else {
                                         let name = selected.name;
-                                        debug!("file is not listable, so ignore: {name}");
-                                        *message.lock().unwrap() =
-                                            format!("'opening file: '{name}'");
-                                        new_data_request = Some(DataRequest::Text(TargetUrl(base)));
+                                        if HUGE_FILES_SUFFIX.iter().any(|s| name.contains(s)) {
+                                            debug!("file is not listable, so ignore: {name}");
+                                            *message.lock().unwrap() =
+                                                format!("'{name}' is not viewable");
+                                        } else {
+                                            debug!("viewing '{name}'");
+                                            *message.lock().unwrap() =
+                                                format!("opening file: '{name}'");
+                                            new_data_request =
+                                                Some(DataRequest::Text(TargetUrl(base)));
+                                        }
                                     }
                                 }
                             }
