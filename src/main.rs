@@ -248,7 +248,7 @@ fn ui() -> Result<(), CustomError> {
                     let mut base = custom_list.base_url.clone();
                     base.push_str(&selected.name);
                     base.push('/');
-                    new_data_request = Some((DataRequest::Log(TargetUrl(base)), ViewId::BottomLog));
+                    //new_data_request = Some((DataRequest::Log(TargetUrl(base)), ViewId::BottomLog));
                 }
             }
         }
@@ -283,16 +283,16 @@ fn ui() -> Result<(), CustomError> {
                             }
                         }
                         DataResponse::Log(log) => {
-                            let mut text = Vec::<Spans>::new();
-                            let msg = log.into_iter().nth(0).unwrap().msg;
-                            for line in msg.lines() {
-                                let spans = Spans::from(vec![Span::raw(line.to_owned())]);
-                                text.push(spans);
-                            }
-                            *log_scroller.lock().unwrap() =
-                                Some(ViewScroller::from(text.len() as u16));
-                            let para = Paragraph::new(text);
-                            *log_view.lock().unwrap() = Some(para);
+                            // let mut text = Vec::<Spans>::new();
+                            // let msg = log.into_iter().nth(0).unwrap().msg;
+                            // for line in msg.lines() {
+                            //     let spans = Spans::from(vec![Span::raw(line.to_owned())]);
+                            //     text.push(spans);
+                            // }
+                            // *log_scroller.lock().unwrap() =
+                            //     Some(ViewScroller::from(text.len() as u16));
+                            // let para = Paragraph::new(text);
+                            // *log_view.lock().unwrap() = Some(para);
                         }
                         DataResponse::Info(_info) => {}
                         DataResponse::Text(t) => {
