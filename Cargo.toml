@@ -11,6 +11,7 @@ env_logger = "0.9.0"
 log = "0.4.14"
 tui = "0.17.0"
 svn-cmd = { git = "https://github.com/rajputrajat/svn-cmd" }
+tempfile = "3.3.0"
 
 [profile.release]
 opt-level = 3

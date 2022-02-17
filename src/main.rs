@@ -9,11 +9,14 @@ use crossterm::{
 };
 use log::debug;
 use std::{
-    io::{self, Stdout},
+    fs::File,
+    io::{self, Stdout, Write},
+    process::Command,
     sync::{mpsc, Arc, Mutex},
     time::Duration,
 };
 use svn_cmd::{ListEntry, PathType};
+use tempfile;
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -122,11 +125,11 @@ fn ui() -> Result<(), CustomError> {
                                 if let Some(selected) =
                                     custom_list.get_current_selected(Arc::clone(&custom_state))
                                 {
+                                    let mut base = custom_list.base_url.clone();
+                                    base.push_str(&selected.name);
+                                    base.push('/');
                                     if selected.kind == PathType::Dir {
                                         debug!("requesting new data");
-                                        let mut base = custom_list.base_url.clone();
-                                        base.push_str(&selected.name);
-                                        base.push('/');
                                         *message.lock().unwrap() =
                                             format!("requesting svn list for '{base}'");
                                         new_data_request =
@@ -136,6 +139,7 @@ fn ui() -> Result<(), CustomError> {
                                         debug!("file is not listable, so ignore: {name}");
                                         *message.lock().unwrap() =
                                             format!("'{name}' is a file. can't be listed");
+                                        new_data_request = Some(DataRequest::Text(TargetUrl(base)));
                                     }
                                 }
                             }
@@ -182,7 +186,19 @@ fn ui() -> Result<(), CustomError> {
                                 *custom_state.lock().unwrap() = CustomListState::from(list);
                             }
                         }
-                        _ => {}
+                        DataResponse::Log(log) => {}
+                        DataResponse::Info(i) => {}
+                        DataResponse::Text(t) => {
+                            let dir = tempfile::tempdir().unwrap();
+                            let file_path = dir.path().join("txt");
+                            let mut file = File::options()
+                                .write(true)
+                                .create(true)
+                                .open(&file_path)
+                                .unwrap();
+                            file.write(t.as_bytes()).unwrap();
+                            let _ = Command::new("less").arg(file_path).output().unwrap();
+                        }
                     },
                     Err(e) => err_tx.send(e).unwrap(),
                 }
