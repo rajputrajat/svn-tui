@@ -425,6 +425,11 @@ fn ui() -> Result<(), CustomError> {
                     ),
                     lower_hchunks[1],
                 );
+            } else {
+                frame.render_widget(
+                    default_block.clone().title("commit message"),
+                    lower_hchunks[1],
+                );
             }
 
             if let Some(curr) = cur {
