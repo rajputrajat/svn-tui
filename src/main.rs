@@ -10,10 +10,7 @@ use crossterm::{
 use log::debug;
 use std::{
     io::{self, Stdout},
-    sync::{
-        mpsc::{self, Receiver, Sender},
-        Arc, Mutex,
-    },
+    sync::{mpsc, Arc, Mutex},
     time::Duration,
 };
 use svn_cmd::{ListEntry, PathType};
