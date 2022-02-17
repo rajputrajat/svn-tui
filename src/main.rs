@@ -88,7 +88,8 @@ fn ui() -> Result<(), CustomError> {
         let CustomListsToDisplay { cur, .. } = locked_lists.get_current();
         CustomListState::from(cur.ok_or_else(|| CustomError::NoDataToList)?)
     }));
-    let mut new_data_request: Option<Request> = Some(Request::Forward(base_url.clone()));
+    let mut new_data_request: Option<DataRequest> =
+        Some(DataRequest::List(TargetUrl(base_url.clone())));
     let message = Arc::new(Mutex::new(format!(
         "requesting svn list for '{}'",
         &base_url
@@ -131,7 +132,8 @@ fn ui() -> Result<(), CustomError> {
                                         base.push('/');
                                         *message.lock().unwrap() =
                                             format!("requesting svn list for '{}'", base);
-                                        new_data_request = Some(Request::Forward(base.clone()));
+                                        new_data_request =
+                                            Some(DataRequest::List(TargetUrl(base.clone())));
                                     } else {
                                         debug!(
                                             "file is not listable, so ignore: {}",
@@ -162,36 +164,36 @@ fn ui() -> Result<(), CustomError> {
             }
         }
 
-        if let Some(Request::Forward(url)) = new_data_request {
+        if let Some(req) = new_data_request {
             let dh = Arc::clone(&data_handler);
             let custom_lists = Arc::clone(&custom_lists);
             let custom_state = Arc::clone(&custom_state);
             let message = Arc::clone(&message);
             let err_tx = error_tx.clone();
-            dh.request(
-                DataRequest::List(TargetUrl(url.clone())),
-                ViewId::MainList,
-                move |res_resp| {
-                    debug!("data received");
-                    *message.lock().unwrap() = format!("displaying new svn list from '{}'", &url);
-                    match res_resp {
-                        Ok(v) => match v {
-                            DataResponse::List(svn_list) => {
-                                let new_list = CustomList::from((svn_list.clone(), url.clone()));
-                                custom_lists.lock().unwrap().add_new_list(new_list);
-                                if let CustomListsToDisplay {
-                                    cur: Some(list), ..
-                                } = custom_lists.lock().unwrap().get_current()
-                                {
-                                    *custom_state.lock().unwrap() = CustomListState::from(list);
-                                }
+            dh.request(req.clone(), ViewId::MainList, move |res_resp| {
+                debug!("data received");
+                match res_resp {
+                    Ok(v) => match v {
+                        DataResponse::List(svn_list) => {
+                            *message.lock().unwrap() =
+                                format!("displaying new svn list from '{:?}'", &req);
+                            let new_list = CustomList::from((
+                                svn_list.clone(),
+                                TargetUrl::from(req.clone()).into(),
+                            ));
+                            custom_lists.lock().unwrap().add_new_list(new_list);
+                            if let CustomListsToDisplay {
+                                cur: Some(list), ..
+                            } = custom_lists.lock().unwrap().get_current()
+                            {
+                                *custom_state.lock().unwrap() = CustomListState::from(list);
                             }
-                            _ => {}
-                        },
-                        Err(e) => err_tx.send(e).unwrap(),
-                    }
-                },
-            );
+                        }
+                        _ => {}
+                    },
+                    Err(e) => err_tx.send(e).unwrap(),
+                }
+            });
             debug!("out here");
             new_data_request = None;
         }

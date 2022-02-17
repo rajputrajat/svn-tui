@@ -14,15 +14,32 @@ pub(crate) struct DataHandler {
     cache: Arc<Mutex<HashMap<DataRequest, (DataResponse, SystemTime)>>>,
 }
 
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Eq, PartialEq, Hash, Clone, Debug)]
 pub(crate) struct TargetUrl(pub(crate) String);
 
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Eq, PartialEq, Hash, Clone, Debug)]
 pub(crate) enum DataRequest {
     Info(TargetUrl),
     List(TargetUrl),
     Log(TargetUrl),
     Text(TargetUrl),
+}
+
+impl From<TargetUrl> for String {
+    fn from(t: TargetUrl) -> Self {
+        t.0
+    }
+}
+
+impl From<DataRequest> for TargetUrl {
+    fn from(r: DataRequest) -> Self {
+        match r {
+            DataRequest::Log(u) => u,
+            DataRequest::List(u) => u,
+            DataRequest::Info(u) => u,
+            DataRequest::Text(u) => u,
+        }
+    }
 }
 
 #[derive(Clone)]

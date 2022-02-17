@@ -155,11 +155,6 @@ impl From<SystemTimeError> for CustomError {
     }
 }
 
-#[derive(PartialEq, Eq)]
-pub(crate) enum Request {
-    Forward(String),
-}
-
 pub(crate) struct CustomLists {
     lists: Vec<CustomList>,
     current: usize,
