@@ -90,10 +90,7 @@ fn ui() -> Result<(), CustomError> {
     }));
     let mut new_data_request: Option<DataRequest> =
         Some(DataRequest::List(TargetUrl(base_url.clone())));
-    let message = Arc::new(Mutex::new(format!(
-        "requesting svn list for '{}'",
-        &base_url
-    )));
+    let message = Arc::new(Mutex::new(format!("requesting svn list for '{base_url}'")));
     let default_block = Block::default().borders(Borders::ALL);
     let svn_info_list = Arc::new(Mutex::new(vec![]));
     let update_svn_info_str = |entry: &ListEntry| {
@@ -131,18 +128,14 @@ fn ui() -> Result<(), CustomError> {
                                         base.push_str(&selected.name);
                                         base.push('/');
                                         *message.lock().unwrap() =
-                                            format!("requesting svn list for '{}'", base);
+                                            format!("requesting svn list for '{base}'");
                                         new_data_request =
                                             Some(DataRequest::List(TargetUrl(base.clone())));
                                     } else {
-                                        debug!(
-                                            "file is not listable, so ignore: {}",
-                                            selected.name
-                                        );
-                                        *message.lock().unwrap() = format!(
-                                            "'{}' is a file. can't be listed",
-                                            selected.name
-                                        );
+                                        let name = selected.name;
+                                        debug!("file is not listable, so ignore: {name}");
+                                        *message.lock().unwrap() =
+                                            format!("'{name}' is a file. can't be listed");
                                     }
                                 }
                             }
@@ -176,7 +169,7 @@ fn ui() -> Result<(), CustomError> {
                     Ok(v) => match v {
                         DataResponse::List(svn_list) => {
                             *message.lock().unwrap() =
-                                format!("displaying new svn list from '{:?}'", &req);
+                                format!("displaying new svn list from '{req:?}'");
                             let new_list = CustomList::from((
                                 svn_list.clone(),
                                 TargetUrl::from(req.clone()).into(),
