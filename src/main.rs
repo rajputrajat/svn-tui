@@ -10,7 +10,10 @@ use crossterm::{
 use log::debug;
 use std::{
     io::{self, Stdout},
-    sync::{Arc, Mutex},
+    sync::{
+        mpsc::{self, Receiver, Sender},
+        Arc, Mutex,
+    },
     time::Duration,
 };
 use svn_cmd::{ListEntry, PathType};
@@ -105,6 +108,7 @@ fn ui() -> Result<(), CustomError> {
         ];
     };
     let data_handler = Arc::new(DataHandler::default());
+    let (error_tx, error_rx) = mpsc::channel::<CustomError>();
     loop {
         if poll(Duration::from_millis(200))? {
             if let Event::Key(KeyEvent { code, .. }) = read()? {
@@ -166,26 +170,36 @@ fn ui() -> Result<(), CustomError> {
             let custom_lists = Arc::clone(&custom_lists);
             let custom_state = Arc::clone(&custom_state);
             let message = Arc::clone(&message);
+            let err_tx = error_tx.clone();
             dh.request(
                 DataRequest::List(TargetUrl(url.clone())),
                 ViewId::MainList,
                 move |res_resp| {
                     debug!("data received");
                     *message.lock().unwrap() = format!("displaying new svn list from '{}'", &url);
-                    if let Ok(DataResponse::List(svn_list)) = res_resp {
-                        let new_list = CustomList::from((svn_list.clone(), url.clone()));
-                        custom_lists.lock().unwrap().add_new_list(new_list);
-                        if let CustomListsToDisplay {
-                            cur: Some(list), ..
-                        } = custom_lists.lock().unwrap().get_current()
-                        {
-                            *custom_state.lock().unwrap() = CustomListState::from(list);
-                        }
+                    match res_resp {
+                        Ok(v) => match v {
+                            DataResponse::List(svn_list) => {
+                                let new_list = CustomList::from((svn_list.clone(), url.clone()));
+                                custom_lists.lock().unwrap().add_new_list(new_list);
+                                if let CustomListsToDisplay {
+                                    cur: Some(list), ..
+                                } = custom_lists.lock().unwrap().get_current()
+                                {
+                                    *custom_state.lock().unwrap() = CustomListState::from(list);
+                                }
+                            }
+                            _ => {}
+                        },
+                        Err(e) => err_tx.send(e).unwrap(),
                     }
                 },
             );
             debug!("out here");
             new_data_request = None;
+        }
+        if let Ok(e) = error_rx.try_recv() {
+            return Err(e);
         }
 
         if let CustomListsToDisplay {

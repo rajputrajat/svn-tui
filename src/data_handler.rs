@@ -63,7 +63,7 @@ pub(crate) enum ViewId {
 
 type ResultSvnList = Result<SvnList, SvnError>;
 pub(crate) type ResultDataResponse = Result<DataResponse, CustomError>;
-type ResponseCb = dyn FnMut(Result<DataResponse, CustomError>) + Send;
+type ResponseCb = dyn FnMut(ResultDataResponse) + Send;
 
 impl DataHandler {
     pub(crate) fn request<F>(self: Arc<Self>, req: DataRequest, view_id: ViewId, f: F)
