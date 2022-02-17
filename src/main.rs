@@ -9,9 +9,7 @@ use crossterm::{
 };
 use log::debug;
 use std::{
-    fs::File,
-    io::{self, Stdout, Write},
-    process::Command,
+    io::{self, Stdout},
     sync::{mpsc, Arc, Mutex},
     time::Duration,
 };
@@ -73,6 +71,48 @@ const MIDDLE: &str = "SVN list";
 const INFO: &str = "info";
 const MESSAGES: &str = "messages";
 
+enum ScrollReq {
+    Up,
+    Down,
+}
+
+#[derive(Default)]
+struct ViewScroller {
+    size: u16,
+    current: u16,
+}
+
+impl From<u16> for ViewScroller {
+    fn from(size: u16) -> Self {
+        Self {
+            size,
+            ..Default::default()
+        }
+    }
+}
+
+impl ViewScroller {
+    fn handle(&mut self, height: u16, req: ScrollReq) -> u16 {
+        match req {
+            ScrollReq::Up => {
+                if self.current > height {
+                    self.current -= height;
+                }
+            }
+            ScrollReq::Down => {
+                if self.current + height < self.size {
+                    self.current += height;
+                }
+            }
+        }
+        self.current
+    }
+
+    fn cur(&self) -> u16 {
+        self.current
+    }
+}
+
 fn ui() -> Result<(), CustomError> {
     let base_url = if let Ok(info_entry) = svn_helper::info(&svn_helper::new()) {
         let mut url = info_entry.entry.url;
@@ -108,13 +148,18 @@ fn ui() -> Result<(), CustomError> {
     let data_handler = Arc::new(DataHandler::default());
     let (error_tx, error_rx) = mpsc::channel::<CustomError>();
     let text_view = Arc::new(Mutex::new(Option::<Paragraph>::None));
+    let text_view_scroller = Arc::new(Mutex::new(Option::<ViewScroller>::None));
+    let mut text_view_scroll_req: Option<ScrollReq> = None;
 
     loop {
+        text_view_scroll_req = None;
         if poll(Duration::from_millis(200))? {
             if let Event::Key(KeyEvent { code, .. }) = read()? {
                 svn_info_list.lock().unwrap().clear();
                 match code {
                     KeyCode::Esc => break,
+                    KeyCode::PageUp => text_view_scroll_req = Some(ScrollReq::Up),
+                    KeyCode::PageDown => text_view_scroll_req = Some(ScrollReq::Down),
                     KeyCode::Char('j') | KeyCode::Down => custom_state.lock().unwrap().inc(),
                     KeyCode::Char('k') | KeyCode::Up => custom_state.lock().unwrap().dec(),
                     KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => {
@@ -170,6 +215,7 @@ fn ui() -> Result<(), CustomError> {
             let message = Arc::clone(&message);
             let err_tx = error_tx.clone();
             let text_view = Arc::clone(&text_view);
+            let scroller = Arc::clone(&text_view_scroller);
             dh.request(req.clone(), ViewId::MainList, move |res_resp| {
                 debug!("data received");
                 match res_resp {
@@ -197,6 +243,7 @@ fn ui() -> Result<(), CustomError> {
                                 let spans = Spans::from(vec![Span::raw(line.to_owned())]);
                                 text.push(spans);
                             }
+                            *scroller.lock().unwrap() = Some(ViewScroller::from(text.len() as u16));
                             let para = Paragraph::new(text);
                             *text_view.lock().unwrap() = Some(para);
                         }
@@ -328,11 +375,30 @@ fn ui() -> Result<(), CustomError> {
                 frame.render_widget(default_block.clone().title(MIDDLE), chunks[2]);
             }
 
+            let scroll = if let Some(req) = text_view_scroll_req {
+                let rect = chunks[3];
+                if let Some(scroller) = &mut *text_view_scroller.lock().unwrap() {
+                    scroller.handle(rect.height, req)
+                } else {
+                    0
+                }
+            } else {
+                if let Some(scroller) = &*text_view_scroller.lock().unwrap() {
+                    scroller.cur()
+                } else {
+                    0
+                }
+            };
             if let Some(para) = &*text_view.lock().unwrap() {
+                frame.render_widget(default_block.clone(), chunks[3]);
                 frame.render_widget(
-                    para.clone().block(default_block.clone().title("INFO")),
+                    para.clone()
+                        .block(default_block.clone())
+                        .scroll((scroll, 0)),
                     chunks[3],
                 );
+            } else {
+                frame.render_widget(default_block.clone(), chunks[3]);
             }
         })?;
     }
