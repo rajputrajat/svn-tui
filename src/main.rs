@@ -107,6 +107,8 @@ fn ui() -> Result<(), CustomError> {
     };
     let data_handler = Arc::new(DataHandler::default());
     let (error_tx, error_rx) = mpsc::channel::<CustomError>();
+    let text_view = Arc::new(Mutex::new(Option::<Paragraph>::None));
+
     loop {
         if poll(Duration::from_millis(200))? {
             if let Event::Key(KeyEvent { code, .. }) = read()? {
@@ -167,6 +169,7 @@ fn ui() -> Result<(), CustomError> {
             let custom_state = Arc::clone(&custom_state);
             let message = Arc::clone(&message);
             let err_tx = error_tx.clone();
+            let text_view = Arc::clone(&text_view);
             dh.request(req.clone(), ViewId::MainList, move |res_resp| {
                 debug!("data received");
                 match res_resp {
@@ -189,15 +192,13 @@ fn ui() -> Result<(), CustomError> {
                         DataResponse::Log(log) => {}
                         DataResponse::Info(i) => {}
                         DataResponse::Text(t) => {
-                            let dir = tempfile::tempdir().unwrap();
-                            let file_path = dir.path().join("txt");
-                            let mut file = File::options()
-                                .write(true)
-                                .create(true)
-                                .open(&file_path)
-                                .unwrap();
-                            file.write(t.as_bytes()).unwrap();
-                            let _ = Command::new("less").arg(file_path).output().unwrap();
+                            let mut text = Vec::<Spans>::new();
+                            for line in t.lines() {
+                                let spans = Spans::from(vec![Span::raw(line.to_owned())]);
+                                text.push(spans);
+                            }
+                            let para = Paragraph::new(text);
+                            *text_view.lock().unwrap() = Some(para);
                         }
                     },
                     Err(e) => err_tx.send(e).unwrap(),
@@ -325,6 +326,13 @@ fn ui() -> Result<(), CustomError> {
                 );
             } else {
                 frame.render_widget(default_block.clone().title(MIDDLE), chunks[2]);
+            }
+
+            if let Some(para) = &*text_view.lock().unwrap() {
+                frame.render_widget(
+                    para.clone().block(default_block.clone().title("INFO")),
+                    chunks[3],
+                );
             }
         })?;
     }
