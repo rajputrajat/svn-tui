@@ -153,11 +153,14 @@ fn ui() -> Result<(), CustomError> {
     let data_handler = Arc::new(DataHandler::default());
     let (error_tx, error_rx) = mpsc::channel::<CustomError>();
     let text_view = Arc::new(Mutex::new(Option::<(Paragraph, String)>::None));
+    let log_view = Arc::new(Mutex::new(Option::<Paragraph>::None));
     let text_view_scroller = Arc::new(Mutex::new(Option::<ViewScroller>::None));
+    let log_view_scroller = Arc::new(Mutex::new(Option::<ViewScroller>::None));
     let mut text_view_scroll_req: Option<ScrollReq>;
 
     loop {
         text_view_scroll_req = None;
+        let mut log_view_need_to_be_updated = false;
         if poll(Duration::from_millis(200))? {
             if let Event::Key(KeyEvent { code, .. }) = read()? {
                 svn_info_list.lock().unwrap().clear();
@@ -169,8 +172,14 @@ fn ui() -> Result<(), CustomError> {
                     KeyCode::PageDown | KeyCode::Char('d') => {
                         text_view_scroll_req = Some(ScrollReq::Down)
                     }
-                    KeyCode::Char('j') | KeyCode::Down => custom_state.lock().unwrap().inc(),
-                    KeyCode::Char('k') | KeyCode::Up => custom_state.lock().unwrap().dec(),
+                    KeyCode::Char('j') | KeyCode::Down => {
+                        custom_state.lock().unwrap().inc();
+                        log_view_need_to_be_updated = true;
+                    }
+                    KeyCode::Char('k') | KeyCode::Up => {
+                        custom_state.lock().unwrap().dec();
+                        log_view_need_to_be_updated = true;
+                    }
                     KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => {
                         if new_data_request.is_none() {
                             if let CustomListsToDisplay {
@@ -228,6 +237,22 @@ fn ui() -> Result<(), CustomError> {
             }
         }
 
+        if log_view_need_to_be_updated {
+            if let CustomListsToDisplay {
+                cur: Some(custom_list),
+                ..
+            } = custom_lists.lock().unwrap().get_current()
+            {
+                if let Some(selected) = custom_list.get_current_selected(Arc::clone(&custom_state))
+                {
+                    let mut base = custom_list.base_url.clone();
+                    base.push_str(&selected.name);
+                    base.push('/');
+                    new_data_request = Some((DataRequest::Log(TargetUrl(base)), ViewId::BottomLog));
+                }
+            }
+        }
+
         if let Some((req, view_id)) = new_data_request {
             let dh = Arc::clone(&data_handler);
             let custom_lists = Arc::clone(&custom_lists);
@@ -235,7 +260,9 @@ fn ui() -> Result<(), CustomError> {
             let message = Arc::clone(&message);
             let err_tx = error_tx.clone();
             let text_view = Arc::clone(&text_view);
-            let scroller = Arc::clone(&text_view_scroller);
+            let log_view = Arc::clone(&log_view);
+            let text_scroller = Arc::clone(&text_view_scroller);
+            let log_scroller = Arc::clone(&log_view_scroller);
             dh.request(req.clone(), view_id, move |res_resp| {
                 debug!("data received");
                 match res_resp {
@@ -255,7 +282,18 @@ fn ui() -> Result<(), CustomError> {
                                 *custom_state.lock().unwrap() = CustomListState::from(list);
                             }
                         }
-                        DataResponse::Log(log) => {}
+                        DataResponse::Log(log) => {
+                            let mut text = Vec::<Spans>::new();
+                            let msg = log.into_iter().nth(0).unwrap().msg;
+                            for line in msg.lines() {
+                                let spans = Spans::from(vec![Span::raw(line.to_owned())]);
+                                text.push(spans);
+                            }
+                            *log_scroller.lock().unwrap() =
+                                Some(ViewScroller::from(text.len() as u16));
+                            let para = Paragraph::new(text);
+                            *log_view.lock().unwrap() = Some(para);
+                        }
                         DataResponse::Info(_info) => {}
                         DataResponse::Text(t) => {
                             let mut text = Vec::<Spans>::new();
@@ -263,7 +301,8 @@ fn ui() -> Result<(), CustomError> {
                                 let spans = Spans::from(vec![Span::raw(line.to_owned())]);
                                 text.push(spans);
                             }
-                            *scroller.lock().unwrap() = Some(ViewScroller::from(text.len() as u16));
+                            *text_scroller.lock().unwrap() =
+                                Some(ViewScroller::from(text.len() as u16));
                             let para = Paragraph::new(text);
                             *text_view.lock().unwrap() =
                                 Some((para, TargetUrl::from(req.clone()).into()));
@@ -376,12 +415,17 @@ fn ui() -> Result<(), CustomError> {
                 lower_hchunks[0],
             );
             frame.render_widget(default_block.clone().title(PREV), chunks[1]);
-            frame.render_widget(
-                default_block
-                    .clone()
-                    .title("commit message : [scroll-up: '9'], [scroll-down: '0']"),
-                lower_hchunks[1],
-            );
+
+            if let Some(para) = &*log_view.lock().unwrap() {
+                frame.render_widget(
+                    para.clone().block(
+                        default_block
+                            .clone()
+                            .title("commit message : [scroll-up: '9'], [scroll-down: '0']"),
+                    ),
+                    lower_hchunks[1],
+                );
+            }
 
             if let Some(curr) = cur {
                 let list = List::new(curr.get_list_items())
