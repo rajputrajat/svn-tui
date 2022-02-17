@@ -14,7 +14,6 @@ use std::{
     time::Duration,
 };
 use svn_cmd::{ListEntry, PathType};
-use tempfile;
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -95,7 +94,7 @@ impl ViewScroller {
     fn handle(&mut self, height: u16, req: ScrollReq) -> u16 {
         match req {
             ScrollReq::Up => {
-                if self.current > height {
+                if self.current >= height {
                     self.current -= height;
                 }
             }
@@ -139,17 +138,17 @@ fn ui() -> Result<(), CustomError> {
     let update_svn_info_str = |entry: &ListEntry| {
         let mut sis = svn_info_list.lock().unwrap();
         *sis = vec![
-            ListItem::new(format!("     url: {}", entry.name)),
-            ListItem::new(format!("revision: {}", entry.commit.revision)),
-            ListItem::new(format!("  author: {}", entry.commit.author)),
-            ListItem::new(format!("    date: {}", entry.commit.date)),
+            ListItem::new(format!("      url: {}", entry.name)),
+            ListItem::new(format!(" revision: {}", entry.commit.revision)),
+            ListItem::new(format!("   author: {}", entry.commit.author)),
+            ListItem::new(format!("     date: {}", entry.commit.date)),
         ];
     };
     let data_handler = Arc::new(DataHandler::default());
     let (error_tx, error_rx) = mpsc::channel::<CustomError>();
-    let text_view = Arc::new(Mutex::new(Option::<Paragraph>::None));
+    let text_view = Arc::new(Mutex::new(Option::<(Paragraph, String)>::None));
     let text_view_scroller = Arc::new(Mutex::new(Option::<ViewScroller>::None));
-    let mut text_view_scroll_req: Option<ScrollReq> = None;
+    let mut text_view_scroll_req: Option<ScrollReq>;
 
     loop {
         text_view_scroll_req = None;
@@ -158,8 +157,12 @@ fn ui() -> Result<(), CustomError> {
                 svn_info_list.lock().unwrap().clear();
                 match code {
                     KeyCode::Esc => break,
-                    KeyCode::PageUp => text_view_scroll_req = Some(ScrollReq::Up),
-                    KeyCode::PageDown => text_view_scroll_req = Some(ScrollReq::Down),
+                    KeyCode::PageUp | KeyCode::Char('u') => {
+                        text_view_scroll_req = Some(ScrollReq::Up)
+                    }
+                    KeyCode::PageDown | KeyCode::Char('d') => {
+                        text_view_scroll_req = Some(ScrollReq::Down)
+                    }
                     KeyCode::Char('j') | KeyCode::Down => custom_state.lock().unwrap().inc(),
                     KeyCode::Char('k') | KeyCode::Up => custom_state.lock().unwrap().dec(),
                     KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => {
@@ -185,7 +188,7 @@ fn ui() -> Result<(), CustomError> {
                                         let name = selected.name;
                                         debug!("file is not listable, so ignore: {name}");
                                         *message.lock().unwrap() =
-                                            format!("'{name}' is a file. can't be listed");
+                                            format!("'opening file: '{name}'");
                                         new_data_request = Some(DataRequest::Text(TargetUrl(base)));
                                     }
                                 }
@@ -245,7 +248,8 @@ fn ui() -> Result<(), CustomError> {
                             }
                             *scroller.lock().unwrap() = Some(ViewScroller::from(text.len() as u16));
                             let para = Paragraph::new(text);
-                            *text_view.lock().unwrap() = Some(para);
+                            *text_view.lock().unwrap() =
+                                Some((para, TargetUrl::from(req.clone()).into()));
                         }
                     },
                     Err(e) => err_tx.send(e).unwrap(),
@@ -389,11 +393,16 @@ fn ui() -> Result<(), CustomError> {
                     0
                 }
             };
-            if let Some(para) = &*text_view.lock().unwrap() {
+            if let Some((para, url)) = &*text_view.lock().unwrap() {
                 frame.render_widget(default_block.clone(), chunks[3]);
                 frame.render_widget(
                     para.clone()
-                        .block(default_block.clone())
+                        .block(
+                            default_block
+                                .clone()
+                                .title(url.as_ref())
+                                .border_style(Style::default().fg(Color::LightMagenta)),
+                        )
                         .scroll((scroll, 0)),
                     chunks[3],
                 );
