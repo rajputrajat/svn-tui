@@ -260,9 +260,9 @@ fn ui() -> Result<(), CustomError> {
             let message = Arc::clone(&message);
             let err_tx = error_tx.clone();
             let text_view = Arc::clone(&text_view);
-            let log_view = Arc::clone(&log_view);
+            let _log_view = Arc::clone(&log_view);
             let text_scroller = Arc::clone(&text_view_scroller);
-            let log_scroller = Arc::clone(&log_view_scroller);
+            let _log_scroller = Arc::clone(&log_view_scroller);
             dh.request(req.clone(), view_id, move |res_resp| {
                 debug!("data received");
                 match res_resp {
@@ -282,7 +282,7 @@ fn ui() -> Result<(), CustomError> {
                                 *custom_state.lock().unwrap() = CustomListState::from(list);
                             }
                         }
-                        DataResponse::Log(log) => {
+                        DataResponse::Log(_log) => {
                             // let mut text = Vec::<Spans>::new();
                             // let msg = log.into_iter().nth(0).unwrap().msg;
                             // for line in msg.lines() {

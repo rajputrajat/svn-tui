@@ -6,7 +6,7 @@ use std::{
     thread::{self, ThreadId},
     time::SystemTime,
 };
-use svn_cmd::{SvnError, SvnInfo, SvnList, SvnLog};
+use svn_cmd::{SvnInfo, SvnList, SvnLog};
 
 #[derive(Default)]
 pub(crate) struct DataHandler {
