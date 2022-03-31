@@ -1,5 +1,6 @@
 mod data_handler;
 mod lister;
+mod ui;
 
 use crate::{data_handler::*, lister::*};
 use crossterm::{
