@@ -25,10 +25,10 @@ pub(crate) mod svn_helper {
 
     pub(crate) fn new() -> SvnCmd {
         let cmd = SvnCmd::new(
-            Credentials {
+            Some(Credentials {
                 username: "svc-p-blsrobo".to_owned(),
                 password: "Comewel@12345".to_owned(),
-            },
+            }),
             None,
         );
         cmd
@@ -80,19 +80,20 @@ impl ListStateOps for CustomListState {
 
 impl ListOps for CustomList {
     fn len(&self) -> usize {
-        self.items.iter().count()
+        self.items.iter().unwrap().count()
     }
 
     fn get_list_items(&self) -> Vec<ListItem> {
         self.items
             .iter()
+            .unwrap()
             .map(|i| ListItem::new(i.name.as_ref()))
             .collect()
     }
 
     fn get_current_selected(&self, state: Arc<Mutex<CustomListState>>) -> Option<ListEntry> {
         if let Some(selected) = state.lock().unwrap().get() {
-            if let Some(item) = self.items.iter().nth(selected) {
+            if let Some(item) = self.items.iter().unwrap().nth(selected) {
                 return Some(item.clone());
             }
         }
